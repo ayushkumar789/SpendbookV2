@@ -125,9 +125,15 @@ function AuthProvider({ children }: { children: ReactNode }) {
   }, [configured]);
 
   const signInWithGoogle = useCallback(async () => {
+    // On Android/iOS the OAuth flow finishes in the system browser, so Supabase
+    // must redirect back via the app's custom URL scheme (deep link). On the
+    // web the normal origin redirect works.
+    const redirectTo = Capacitor.isNativePlatform()
+      ? "com.spendbook.app://auth/callback"
+      : window.location.origin;
     const { error } = await getSupabase().auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo },
     });
     if (error) throw new Error(error.message);
   }, []);
@@ -204,11 +210,18 @@ export function useToastContext(): ToastContextValue {
 
 /* ————————————— Native deep links ————————————— */
 
-/** Routes spendbook://shared/[id] and https links into the app on Android/iOS. */
+/** Routes spendbook://shared/[id], OAuth callbacks and https links into the app on Android/iOS. */
 function DeepLinkHandler() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const sub = CapacitorApp.addListener("appUrlOpen", ({ url }) => {
+      // com.spendbook.app://auth/callback#access_token=… → forward the tokens
+      // (hash and/or query intact) to the in-app callback page.
+      const authIdx = url.indexOf("auth/callback");
+      if (authIdx !== -1) {
+        window.location.href = `/auth/callback${url.slice(authIdx + "auth/callback".length)}`;
+        return;
+      }
       const match = url.match(/shared\/([0-9a-f-]{36})/i);
       if (match) window.location.href = `/shared/${match[1]}`;
     });
