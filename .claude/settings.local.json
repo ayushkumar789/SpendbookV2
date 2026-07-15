@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm *)",
+      "Skill(dataviz)",
+      "Bash(node \"C:\\\\Users\\\\KUROGA~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\bundled-skills\\\\2.1.207\\\\b0b0a7c1ead52ed764883e18498b4603\\\\dataviz\\\\scripts\\\\validate_palette.js\" \"#1B9E74,#D9435C\" --mode light --surface \"#FAF6EF\")",
+      "Bash(node \"C:\\\\Users\\\\KUROGA~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\bundled-skills\\\\2.1.207\\\\b0b0a7c1ead52ed764883e18498b4603\\\\dataviz\\\\scripts\\\\validate_palette.js\" \"#3FC795,#F17E8A\" --mode dark --surface \"#141110\")",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 60)",
+      "PowerShell(Rename-Item *)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 40; if \\($LASTEXITCODE -eq 0\\) { \"TYPECHECK PASS\" })",
+      "Bash(curl -s -o /dev/null -w \"root: %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"enter-code: %{http_code}\\\\n\" http://localhost:3000/shared/enter-code)",
+      "Bash(curl -s http://localhost:3000/)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 20; if \\($LASTEXITCODE -eq 0\\) { \"TYPECHECK PASS\" })",
+      "Bash(curl -s -o /dev/null -w \"home: %{http_code}\\\\n\" http://localhost:3000/home)",
+      "Bash(curl -s -o /dev/null -w \"settings: %{http_code}\\\\n\" http://localhost:3000/settings)",
+      "Bash(curl -s -o /dev/null -w \"pm: %{http_code}\\\\n\" http://localhost:3000/payment-methods)",
+      "Bash(curl -s -o /dev/null -w \"shared: %{http_code}\\\\n\" http://localhost:3000/shared/00000000-0000-0000-0000-000000000000)",
+      "Bash(xargs sed -i 's/font-display \\\\\\(text-\\\\[\\\\?[^ ]*\\\\\\) font-semibold/font-display \\\\1/g; s/font-semibold \\\\\\(font-display\\\\\\)/\\\\1/g')",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 30; if \\($LASTEXITCODE -eq 0\\) { \"TYPECHECK PASS\" })",
+      "Bash(printf '\\\\n-- ═══════════════════════════════════════════════════════════\\\\n-- V3 additions \\(wallet vault, profile links\\) — see schema-v3-additions.sql\\\\n-- ═══════════════════════════════════════════════════════════\\\\n')",
+      "Bash(tail -n +8 supabase/schema-v3-additions.sql)"
+    ]
+  }
+}

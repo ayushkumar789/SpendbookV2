@@ -1,0 +1,511 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════
+   SpendBook v2 design tokens — "VOLT LEDGER"
+   Dark-first. Near-black moss surfaces in five levels, one
+   acid-lime accent used sparingly, mint for Cash In, ember
+   for Cash Out. Light mode is its own designed experience:
+   fresh paper with deep olive ink.
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* Light — "daylight paper" */
+  --bg: #f4f6ef;
+  --bg-side: #edf0e5;
+  --bg-sunken: #e8ebdf;
+  --card: #ffffff;
+  --card-hi: #fdfef9;
+  --line: #e2e6d8;
+  --line-strong: #c9d0ba;
+
+  --ink: #171a13;
+  --ink-2: #565c4e;
+  --ink-3: #878e7c;
+
+  --brand: #c8e62b;
+  --brand-deep: #66790a;
+  --brand-soft: rgba(160, 190, 20, 0.14);
+  --brand-glow: rgba(160, 190, 20, 0.4);
+  --on-brand: #171a13;
+
+  --jade: #0f8a5f;
+  --jade-chart: #0f8a5f;
+  --jade-soft: rgba(15, 138, 95, 0.1);
+  --rose: #d8442e;
+  --rose-chart: #d8442e;
+  --rose-soft: rgba(216, 68, 46, 0.09);
+  --warn: #9a6b00;
+
+  --chart-grid: #e6e9dc;
+  --chart-tick: #878e7c;
+  --cat-1: #7a8f0a;
+  --cat-2: #0a87a0;
+  --cat-3: #d8442e;
+  --cat-4: #178a5b;
+  --cat-5: #8a5bb0;
+  --cat-6: #b06e2e;
+
+  --shadow-card: 0 1px 2px rgba(23, 26, 19, 0.05), 0 10px 28px -14px rgba(23, 26, 19, 0.16);
+  --shadow-pop: 0 4px 16px rgba(23, 26, 19, 0.07), 0 28px 64px -20px rgba(23, 26, 19, 0.28);
+  --shadow-nav: 0 8px 20px rgba(23, 26, 19, 0.1), 0 24px 56px -18px rgba(23, 26, 19, 0.3);
+
+  --glass: rgba(255, 255, 255, 0.78);
+  --ray-opacity: 0.35;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  /* Dark — "midnight moss" · five surface levels */
+  --bg: #0b0c0a;
+  --bg-side: #121510;
+  --bg-sunken: #060705;
+  --card: #161914;
+  --card-hi: #1e221c;
+  --line: rgba(242, 244, 238, 0.08);
+  --line-strong: rgba(242, 244, 238, 0.17);
+
+  --ink: #f2f4ee;
+  --ink-2: #a8aea0;
+  --ink-3: #6d7365;
+
+  --brand: #d6f62f;
+  --brand-deep: #e6ff5e;
+  --brand-soft: rgba(214, 246, 47, 0.11);
+  --brand-glow: rgba(214, 246, 47, 0.4);
+  --on-brand: #131505;
+
+  --jade: #4bdfa4;
+  --jade-chart: #2aa678;
+  --jade-soft: rgba(75, 223, 164, 0.1);
+  --rose: #ff8672;
+  --rose-chart: #e04e3c;
+  --rose-soft: rgba(255, 134, 114, 0.1);
+  --warn: #f5c044;
+
+  --chart-grid: rgba(242, 244, 238, 0.07);
+  --chart-tick: #6d7365;
+  --cat-1: #84a210;
+  --cat-2: #28a4c4;
+  --cat-3: #e04e3c;
+  --cat-4: #2aa678;
+  --cat-5: #9d64c8;
+  --cat-6: #c08034;
+
+  --shadow-card:
+    0 1px 0 rgba(242, 244, 238, 0.05) inset,
+    0 2px 5px rgba(0, 0, 0, 0.45),
+    0 10px 22px -8px rgba(0, 0, 0, 0.55),
+    0 24px 48px -18px rgba(0, 0, 0, 0.7);
+  --shadow-pop:
+    0 1px 0 rgba(242, 244, 238, 0.07) inset,
+    0 6px 14px rgba(0, 0, 0, 0.5),
+    0 32px 80px -20px rgba(0, 0, 0, 0.8);
+  --shadow-nav: 0 1px 0 rgba(242, 244, 238, 0.07) inset, 0 20px 48px -12px rgba(0, 0, 0, 0.75);
+
+  --glass: rgba(17, 19, 15, 0.72);
+  --ray-opacity: 0.5;
+  color-scheme: dark;
+}
+
+/* Traveling-light angle for shimmer borders */
+@property --spin {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+html.theme-anim,
+html.theme-anim * {
+  transition:
+    background-color 0.5s ease,
+    border-color 0.5s ease,
+    color 0.5s ease,
+    fill 0.5s ease,
+    box-shadow 0.5s ease !important;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: contain;
+}
+
+/* Fine grain so dark surfaces never band */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.6 0 0 0 0 0.42 0 0 0 0.02 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Corner glows — barely-there moss/teal light so the page never reads flat.
+   Deep space, not a black rectangle. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(44% 38% at 0% 0%, rgba(96, 150, 88, 0.055), transparent 72%),
+    radial-gradient(38% 32% at 100% 4%, rgba(40, 164, 196, 0.045), transparent 70%),
+    radial-gradient(46% 40% at 100% 100%, rgba(42, 166, 120, 0.05), transparent 72%),
+    radial-gradient(40% 34% at 0% 100%, rgba(214, 246, 47, 0.03), transparent 70%);
+}
+
+::selection {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@layer components {
+  .label-caps {
+    @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-ink3;
+  }
+
+  .card-surface {
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-hi {
+    background: var(--card-hi);
+  }
+
+  /* Raycast-style backlight: soft glow bleeding from behind a panel */
+  .backlit {
+    position: relative;
+  }
+  .backlit::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(60% 50% at 50% 0%, var(--brand-glow), transparent 70%);
+    opacity: 0.25;
+    filter: blur(14px);
+    transition: opacity 0.35s ease;
+  }
+  .backlit:hover::before {
+    opacity: 0.5;
+  }
+
+  /* Hoverable card: lift + glow intensify */
+  .card-lift {
+    transition:
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.3s ease,
+      border-color 0.3s ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pop), 0 0 32px -10px var(--brand-glow);
+    border-color: var(--line-strong);
+  }
+
+  /* Raycast traveling-light border for primary buttons */
+  .shimmer-border {
+    position: relative;
+    isolation: isolate;
+  }
+  .shimmer-border::before {
+    content: "";
+    position: absolute;
+    inset: -1.5px;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(
+      from var(--spin),
+      transparent 0deg,
+      transparent 288deg,
+      rgba(255, 255, 255, 0.95) 322deg,
+      var(--brand) 338deg,
+      transparent 360deg
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: spin-border 2.8s linear infinite;
+  }
+  @keyframes spin-border {
+    to {
+      --spin: 360deg;
+    }
+  }
+
+  /* Card variant: the same traveling light, but slow and soft — the card
+     breathes light instead of spinning it. Drawn just inside the edge so it
+     survives overflow-hidden. */
+  .shimmer-card {
+    position: relative;
+  }
+  .shimmer-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    opacity: 0.55;
+    background: conic-gradient(
+      from var(--spin),
+      transparent 0deg,
+      transparent 300deg,
+      var(--brand-glow) 332deg,
+      rgba(255, 255, 255, 0.55) 344deg,
+      transparent 360deg
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: spin-border 7s linear infinite;
+  }
+
+  /* Physical bank/document card: standard 1.586:1 ratio + glossy sheen */
+  .bank-card {
+    aspect-ratio: 1.586 / 1;
+    border-radius: 18px;
+    position: relative;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    transition: transform 0.25s ease, box-shadow 0.3s ease;
+    will-change: transform;
+  }
+  .bank-card .sheen {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(125deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 32%, transparent 50%);
+    transition: transform 0.4s ease, opacity 0.4s ease;
+    opacity: 0.8;
+  }
+  .bank-card:hover .sheen {
+    transform: translateX(14%) skewX(-4deg);
+    opacity: 1;
+  }
+
+  /* List row hover: highlight sweeps left → right */
+  .row-sweep {
+    position: relative;
+    overflow: hidden;
+  }
+  .row-sweep::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, var(--brand-soft), transparent 65%);
+    transform: translateX(-101%);
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+  .row-sweep:hover::before {
+    transform: translateX(0);
+  }
+
+  .glass-surface {
+    background: var(--glass);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid var(--line);
+  }
+
+  .amount {
+    @apply font-mono;
+    font-feature-settings: "tnum" on, "lnum" on;
+    letter-spacing: -0.02em;
+  }
+
+  .press {
+    @apply transition-transform duration-150 active:scale-[0.97];
+  }
+
+  .skeleton {
+    background: linear-gradient(100deg, var(--bg-sunken) 40%, var(--card-hi) 50%, var(--bg-sunken) 60%);
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-lg;
+  }
+
+  /* Empty-state illustration: gentle breathing float */
+  .float-breathe {
+    animation: float-breathe 5.5s ease-in-out infinite;
+    transform-origin: 50% 60%;
+  }
+  @keyframes float-breathe {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    50% {
+      transform: translateY(-7px) scale(1.015);
+    }
+  }
+
+  .hide-scrollbar {
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ————— Linear-style atmospheric route glow ————— */
+.route-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(42% 34% at 50% -4%, var(--brand-glow), transparent 70%),
+    radial-gradient(30% 26% at 82% 108%, var(--jade-soft), transparent 70%),
+    radial-gradient(26% 24% at 12% 104%, var(--rose-soft), transparent 70%);
+  filter: blur(28px) saturate(1.3);
+  animation: route-glow 0.95s ease-out forwards;
+}
+@keyframes route-glow {
+  0% {
+    opacity: 0;
+  }
+  28% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ————— Raycast-style waving neon rays (login / hero) ————— */
+.ray-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ray {
+  position: absolute;
+  top: -30%;
+  height: 160%;
+  width: 130px;
+  opacity: var(--ray-opacity);
+  filter: blur(42px);
+  transform-origin: 50% 0%;
+  animation:
+    ray-sway 11s ease-in-out infinite alternate,
+    ray-hue 18s linear infinite;
+}
+@keyframes ray-sway {
+  0% {
+    transform: rotate(14deg) translateX(-24px) scaleY(1);
+  }
+  100% {
+    transform: rotate(20deg) translateX(26px) scaleY(1.08);
+  }
+}
+@keyframes ray-hue {
+  0%,
+  100% {
+    filter: blur(42px) hue-rotate(0deg);
+  }
+  50% {
+    filter: blur(42px) hue-rotate(-38deg);
+  }
+}
+
+/* ————— Confetti burst (goals) ————— */
+.confetti-piece {
+  position: absolute;
+  width: 7px;
+  height: 11px;
+  top: 45%;
+  left: 50%;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confetti-pop 1.25s cubic-bezier(0.16, 0.8, 0.4, 1) var(--cf-delay, 0s) forwards;
+}
+@keyframes confetti-pop {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--cf-x), var(--cf-y)) rotate(var(--cf-r)) scale(0.7);
+  }
+}
+
+/* ————— Search-result highlight flash ————— */
+.tx-highlight {
+  animation: tx-flash 2.2s ease-out;
+}
+@keyframes tx-flash {
+  0%,
+  55% {
+    background: var(--brand-soft);
+    box-shadow: inset 3px 0 0 var(--brand);
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 0 0 0 transparent;
+  }
+}
+
+/* Recharts polish */
+.recharts-tooltip-cursor {
+  fill: var(--brand-soft) !important;
+}
+.recharts-cartesian-axis-tick text {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  fill: var(--chart-tick);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
+  cursor: pointer;
+}
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+}
