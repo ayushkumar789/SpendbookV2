@@ -278,6 +278,22 @@ export interface PublicAccountBalance {
   updatedAt: string | null;
 }
 
+/* ————— v7: People (saved public profiles) ————— */
+
+export interface SavedProfile {
+  id: string;
+  user_id: string;
+  saved_user_id: string;
+  saved_display_name: string;
+  saved_photo_url: string | null;
+  created_at: string;
+}
+
+/** A People card: the saved profile plus that person's public balances. */
+export interface SavedProfileWithBalances extends SavedProfile {
+  balances: PublicAccountBalance[];
+}
+
 export interface AccountStatsV4 {
   /* Overview (transfers excluded from money totals) */
   books: number;

@@ -28,6 +28,7 @@ import {
   reorderProfileLinks,
   updateProfileLink,
 } from "@/lib/features/links";
+import { shareProfileLink } from "@/lib/features/people";
 import { cn } from "@/lib/helpers";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
@@ -39,11 +40,6 @@ export default function LinksPage() {
       <LinksContent />
     </AppShell>
   );
-}
-
-function publicProfileUrl(userId: string): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "");
-  return `${base}/u/${userId}`;
 }
 
 function LinksContent() {
@@ -71,10 +67,13 @@ function LinksContent() {
     void refresh();
   }, [refresh]);
 
+  // Native share sheet where available; falls back to copying the link.
   const shareProfile = async (): Promise<void> => {
     if (!user) return;
-    await navigator.clipboard.writeText(publicProfileUrl(user.id));
-    toast("Profile link copied!", "success");
+    const name = (user.user_metadata.full_name as string | undefined) ?? user.email ?? null;
+    const result = await shareProfileLink(user.id, name);
+    if (result === "copied") toast("Profile link copied!", "success");
+    else if (result === "failed") toast("Could not share. Try copying the link manually.", "error");
   };
 
   const togglePublic = async (link: ProfileLink): Promise<void> => {

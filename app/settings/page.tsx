@@ -18,6 +18,7 @@ import {
   LogOut,
   Pencil,
   Scale,
+  Share2,
   Sparkles,
   Trash2,
   Trophy,
@@ -33,6 +34,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { getUserProfile } from "@/lib/database";
 import { deleteAllUserData, exportAllData, getAccountStatsV4, updateDisplayName } from "@/lib/features/account";
+import { shareProfileLink } from "@/lib/features/people";
 import { formatCurrency, formatDate, getInitials } from "@/lib/helpers";
 import { APP_VERSION } from "@/lib/constants";
 import type { UserProfile } from "@/types";
@@ -316,6 +318,21 @@ function SettingsContent() {
                 <p className="mt-1 text-xs text-ink3">Member since {formatDate(profile.created_at, "d MMM yyyy")}</p>
               ) : null}
             </div>
+          </div>
+          <div className="relative mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Share2 className="h-4 w-4" />}
+              onClick={async () => {
+                if (!user) return;
+                const result = await shareProfileLink(user.id, name || null);
+                if (result === "copied") toast("Profile link copied!", "success");
+                else if (result === "failed") toast("Could not share. Try copying the link manually.", "error");
+              }}
+            >
+              Share Profile
+            </Button>
           </div>
         </section>
 

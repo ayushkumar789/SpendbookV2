@@ -13,6 +13,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Users,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn, getInitials } from "@/lib/helpers";
@@ -25,6 +26,7 @@ const NAV = [
   { href: "/goals", label: "Goals", icon: Flag },
   { href: "/wallet", label: "Wallet", icon: ShieldCheck },
   { href: "/links", label: "Links", icon: Link2 },
+  { href: "/people", label: "People", icon: Users },
   { href: "/payment-methods", label: "Payment Methods", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

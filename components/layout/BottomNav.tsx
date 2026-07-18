@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, Flag, Home, Landmark, Link2, Settings, ShieldCheck, Sparkles } from "lucide-react";
+import { CreditCard, Flag, Home, Landmark, Link2, Settings, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/helpers";
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/goals", label: "Goals", icon: Flag },
   { href: "/wallet", label: "Wallet", icon: ShieldCheck },
   { href: "/links", label: "Links", icon: Link2 },
+  { href: "/people", label: "People", icon: Users },
   { href: "/payment-methods", label: "Methods", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -3,25 +3,43 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Check, UserPlus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { platformMeta } from "@/components/links/platforms";
 import { getPublicProfile } from "@/lib/features/links";
 import { formatBalance, getPublicAccountBalances } from "@/lib/features/accounts";
+import { isProfileSaved, removeSavedProfile, saveProfile } from "@/lib/features/people";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { SplashScreen } from "@/components/ui/LoadingSpinner";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SetupNotice } from "@/components/layout/AppShell";
-import { getInitials } from "@/lib/helpers";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
+import { cn, getInitials } from "@/lib/helpers";
 import type { PublicAccountBalance, PublicProfile } from "@/types/features";
 
 /** Public Linktree-style profile — no login required. */
 export default function PublicProfilePage() {
   const params = useParams<{ userId: string }>();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [balances, setBalances] = useState<PublicAccountBalance[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "gone">("loading");
+  const [saved, setSaved] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const isOwnProfile = user?.id === params.userId;
+
+  useEffect(() => {
+    if (!user || user.id === params.userId) return;
+    isProfileSaved(user.id, params.userId)
+      .then(setSaved)
+      .catch(() => undefined);
+  }, [user, params.userId]);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
@@ -137,6 +155,43 @@ export default function PublicProfilePage() {
           <h1 className="mt-5 font-display text-[34px] leading-tight tracking-tight text-ink">
             {profile.display_name ?? "SpendBook user"}
           </h1>
+
+          {/* Save to People — logged-in visitors only */}
+          {isOwnProfile ? (
+            <p className="mt-3 text-xs font-semibold text-ink3">This is your profile</p>
+          ) : user ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (saved) {
+                  setConfirmRemove(true);
+                  return;
+                }
+                if (saveBusy) return;
+                setSaveBusy(true);
+                saveProfile(user.id, params.userId, profile.display_name ?? "SpendBook user", profile.photo_url)
+                  .then(() => {
+                    setSaved(true);
+                    toast("Added to your People", "success");
+                  })
+                  .catch((e: unknown) =>
+                    toast(e instanceof Error ? e.message : "Could not save the profile", "error")
+                  )
+                  .finally(() => setSaveBusy(false));
+              }}
+              disabled={saveBusy}
+              className={cn(
+                "press mt-4 flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold transition-colors",
+                saved
+                  ? "border-line bg-sunken text-ink3 hover:text-ink"
+                  : "border-transparent bg-brand text-on-brand shadow-[0_0_16px_-6px_var(--brand-glow)]"
+              )}
+              title={saved ? "Tap to remove from your People" : "Save this profile to your People"}
+            >
+              {saved ? <Check className="h-4 w-4" strokeWidth={3} /> : <UserPlus className="h-4 w-4" />}
+              {saved ? "Saved" : "Save to People"}
+            </button>
+          ) : null}
         </div>
 
         {/* Balances lead when there are no links to show */}
@@ -189,6 +244,21 @@ export default function PublicProfilePage() {
         </div>
 
         {publicLinks.length > 0 ? balancesSection : null}
+
+        <ConfirmDialog
+          open={confirmRemove}
+          onClose={() => setConfirmRemove(false)}
+          title={`Remove ${profile.display_name ?? "this person"} from your People?`}
+          message="You can always save them again from this page."
+          confirmLabel="Remove"
+          destructive
+          onConfirm={async () => {
+            if (!user) return;
+            await removeSavedProfile(user.id, params.userId);
+            setSaved(false);
+            toast("Removed from your People", "info");
+          }}
+        />
 
         {/* Footer */}
         <div className="mt-auto pt-12">
