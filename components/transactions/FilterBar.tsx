@@ -4,17 +4,18 @@ import { CalendarRange, X } from "lucide-react";
 import { useState } from "react";
 import { CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/helpers";
-import type { TransactionFilters, TransactionType } from "@/types";
+import type { TransactionFiltersV4, TransactionTypeV4 } from "@/types/features";
 
 interface FilterBarProps {
-  filters: TransactionFilters;
-  onChange: (next: TransactionFilters) => void;
+  filters: TransactionFiltersV4;
+  onChange: (next: TransactionFiltersV4) => void;
 }
 
-const TYPE_TABS: { key: TransactionType | "all"; label: string }[] = [
+const TYPE_TABS: { key: TransactionTypeV4 | "all"; label: string }[] = [
   { key: "all", label: "All" },
   { key: "in", label: "Cash In" },
   { key: "out", label: "Cash Out" },
+  { key: "transfer", label: "Transfer" },
 ];
 
 export function FilterBar({ filters, onChange }: FilterBarProps) {
@@ -36,9 +37,12 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
                     ? "bg-jade text-white shadow-card"
                     : t.key === "out"
                       ? "bg-rose text-white shadow-card"
-                      : "bg-ink text-canvas shadow-card"
+                      : t.key === "transfer"
+                        ? "text-white shadow-card"
+                        : "bg-ink text-canvas shadow-card"
                   : "text-ink3 hover:text-ink"
               )}
+              style={filters.type === t.key && t.key === "transfer" ? { background: "var(--sky-chart)" } : undefined}
             >
               {t.label}
             </button>

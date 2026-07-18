@@ -6,12 +6,21 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   BookOpen,
+  CalendarClock,
+  CalendarDays,
+  CalendarRange,
   Check,
+  Crown,
   Download,
+  Flame,
+  Layers,
   ListOrdered,
   LogOut,
   Pencil,
+  Scale,
+  Sparkles,
   Trash2,
+  Trophy,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Header } from "@/components/layout/Header";
@@ -23,11 +32,31 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { getUserProfile } from "@/lib/database";
-import { deleteAllUserData, exportAllData, getAccountStats, updateDisplayName } from "@/lib/features/account";
+import { deleteAllUserData, exportAllData, getAccountStatsV4, updateDisplayName } from "@/lib/features/account";
 import { formatCurrency, formatDate, getInitials } from "@/lib/helpers";
 import { APP_VERSION } from "@/lib/constants";
 import type { UserProfile } from "@/types";
-import type { AccountStats } from "@/types/features";
+import type { AccountStatsV4 } from "@/types/features";
+
+const EMPTY_STATS: AccountStatsV4 = {
+  books: 0,
+  transactions: 0,
+  cashIn: 0,
+  cashOut: 0,
+  biggestExpense: null,
+  bestMonth: null,
+  topCategory: null,
+  avgMonthlySpend: 0,
+  avgTransactionAmount: 0,
+  largestCashIn: null,
+  currentStreak: 0,
+  longestStreak: 0,
+  activeDays: 0,
+  topWeekday: null,
+};
+
+const countFormat = (n: number): string => String(Math.round(n));
+const daysFormat = (n: number): string => `${Math.round(n)} ${Math.round(n) === 1 ? "day" : "days"}`;
 
 export default function SettingsPage() {
   return (
@@ -37,13 +66,59 @@ export default function SettingsPage() {
   );
 }
 
+interface StatCardData {
+  label: string;
+  /** null → no data yet, renders an em dash */
+  value: number | null;
+  sub?: string;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  color: string;
+  soft: string;
+  format: (n: number) => string;
+}
+
+function StatGrid({ cards }: { cards: StatCardData[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {cards.map(({ label, value, sub, icon: Icon, color, soft, format }, i) => (
+        <div
+          key={label}
+          className="card-surface card-lift shimmer-card rounded-2xl p-4 animate-fade-up"
+          style={{ animationDelay: `${i * 60}ms` }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: soft }}>
+              <Icon className="h-3.5 w-3.5" style={{ color }} />
+            </span>
+            <p className="label-caps">{label}</p>
+          </div>
+          <p className="amount mt-2.5 truncate text-[22px] font-semibold tracking-tight" style={{ color }}>
+            {value === null ? "—" : <AnimatedAmount value={value} format={format} />}
+          </p>
+          {sub ? <p className="mt-1 truncate text-xs text-ink3">{sub}</p> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StatGridSkeleton({ count }: { count: number }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {Array.from({ length: count }, (_, i) => (
+        <Skeleton key={i} className="h-24 rounded-2xl" />
+      ))}
+    </div>
+  );
+}
+
 function SettingsContent() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [stats, setStats] = useState<AccountStats | null>(null);
+  const [stats, setStats] = useState<AccountStatsV4 | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -56,9 +131,9 @@ function SettingsContent() {
     void getUserProfile(user.id)
       .then(setProfile)
       .catch(() => undefined);
-    void getAccountStats(user.id)
+    void getAccountStatsV4(user.id)
       .then(setStats)
-      .catch(() => setStats({ books: 0, transactions: 0, cashIn: 0, cashOut: 0 }));
+      .catch(() => setStats(EMPTY_STATS));
   }, [user]);
 
   const fallbackName = (user?.user_metadata.full_name as string | undefined) ?? "";
@@ -85,12 +160,90 @@ function SettingsContent() {
     }
   };
 
-  const statCards = stats
+  const numberCards = stats
     ? [
-        { label: "Books", value: stats.books, icon: BookOpen, color: "var(--brand-deep)", soft: "var(--brand-soft)", money: false },
-        { label: "Transactions", value: stats.transactions, icon: ListOrdered, color: "var(--ink)", soft: "var(--bg-sunken)", money: false },
-        { label: "Total Cash In", value: stats.cashIn, icon: ArrowDownLeft, color: "var(--jade)", soft: "var(--jade-soft)", money: true },
-        { label: "Total Cash Out", value: stats.cashOut, icon: ArrowUpRight, color: "var(--rose)", soft: "var(--rose-soft)", money: true },
+        { label: "Books", value: stats.books, icon: BookOpen, color: "var(--brand-deep)", soft: "var(--brand-soft)", format: countFormat },
+        { label: "Transactions", value: stats.transactions, icon: ListOrdered, color: "var(--ink)", soft: "var(--bg-sunken)", format: countFormat },
+        { label: "All-time Cash In", value: stats.cashIn, icon: ArrowDownLeft, color: "var(--jade)", soft: "var(--jade-soft)", format: formatCurrency },
+        { label: "All-time Cash Out", value: stats.cashOut, icon: ArrowUpRight, color: "var(--rose)", soft: "var(--rose-soft)", format: formatCurrency },
+      ]
+    : null;
+
+  const patternCards = stats
+    ? [
+        {
+          label: "Biggest expense",
+          value: stats.biggestExpense?.amount ?? null,
+          sub: stats.biggestExpense ? `${stats.biggestExpense.category} · ${formatDate(stats.biggestExpense.date)}` : "No expenses yet",
+          icon: Crown,
+          color: "var(--rose)",
+          soft: "var(--rose-soft)",
+          format: formatCurrency,
+        },
+        {
+          label: "Best month",
+          value: stats.bestMonth?.net ?? null,
+          sub: stats.bestMonth ? stats.bestMonth.label : "No months yet",
+          icon: Trophy,
+          color: "var(--jade)",
+          soft: "var(--jade-soft)",
+          format: formatCurrency,
+        },
+        {
+          label: "Top category",
+          value: stats.topCategory?.total ?? null,
+          sub: stats.topCategory
+            ? `${stats.topCategory.name} · ${stats.topCategory.count} ${stats.topCategory.count === 1 ? "entry" : "entries"}`
+            : "No entries yet",
+          icon: Layers,
+          color: "var(--brand-deep)",
+          soft: "var(--brand-soft)",
+          format: formatCurrency,
+        },
+        {
+          label: "Avg monthly spend",
+          value: stats.avgMonthlySpend,
+          sub: "Cash Out across active months",
+          icon: CalendarRange,
+          color: "var(--rose)",
+          soft: "var(--rose-soft)",
+          format: formatCurrency,
+        },
+        {
+          label: "Avg transaction",
+          value: stats.avgTransactionAmount,
+          sub: "Typical entry size",
+          icon: Scale,
+          color: "var(--ink)",
+          soft: "var(--bg-sunken)",
+          format: formatCurrency,
+        },
+        {
+          label: "Largest Cash In",
+          value: stats.largestCashIn?.amount ?? null,
+          sub: stats.largestCashIn ? `${stats.largestCashIn.category} · ${formatDate(stats.largestCashIn.date)}` : "No income yet",
+          icon: Sparkles,
+          color: "var(--jade)",
+          soft: "var(--jade-soft)",
+          format: formatCurrency,
+        },
+      ]
+    : null;
+
+  const activityCards = stats
+    ? [
+        { label: "Current streak", value: stats.currentStreak, sub: "Consecutive days with an entry", icon: Flame, color: "var(--warn)", soft: "var(--brand-soft)", format: daysFormat },
+        { label: "Longest streak", value: stats.longestStreak, sub: "Your best run ever", icon: Trophy, color: "var(--brand-deep)", soft: "var(--brand-soft)", format: daysFormat },
+        { label: "Active days", value: stats.activeDays, sub: "Days with at least one entry", icon: CalendarDays, color: "var(--ink)", soft: "var(--bg-sunken)", format: countFormat },
+        {
+          label: "Most active day",
+          value: stats.topWeekday?.count ?? null,
+          sub: stats.topWeekday ? `${stats.topWeekday.name} — most entries logged` : "No entries yet",
+          icon: CalendarClock,
+          color: "var(--jade)",
+          soft: "var(--jade-soft)",
+          format: (n: number) => `${Math.round(n)} entries`,
+        },
       ]
     : null;
 
@@ -168,31 +321,18 @@ function SettingsContent() {
 
         {/* Stats */}
         <section className="animate-fade-up" style={{ animationDelay: "70ms" }}>
-          <h2 className="label-caps mb-3">Your SpendBook</h2>
-          {statCards ? (
-            <div className="grid grid-cols-2 gap-3">
-              {statCards.map(({ label, value, icon: Icon, color, soft, money }, i) => (
-                <div key={label} className="card-surface card-lift shimmer-card rounded-2xl p-4 animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: soft }}>
-                      <Icon className="h-3.5 w-3.5" style={{ color }} />
-                    </span>
-                    <p className="label-caps">{label}</p>
-                  </div>
-                  <p className="amount mt-2.5 truncate text-[22px] font-semibold tracking-tight" style={{ color }}>
-                    <AnimatedAmount value={value} format={money ? formatCurrency : (n) => String(Math.round(n))} />
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <Skeleton className="h-24 rounded-2xl" />
-              <Skeleton className="h-24 rounded-2xl" />
-              <Skeleton className="h-24 rounded-2xl" />
-              <Skeleton className="h-24 rounded-2xl" />
-            </div>
-          )}
+          <h2 className="label-caps mb-3">Your numbers</h2>
+          {numberCards ? <StatGrid cards={numberCards} /> : <StatGridSkeleton count={4} />}
+        </section>
+
+        <section className="animate-fade-up" style={{ animationDelay: "100ms" }}>
+          <h2 className="label-caps mb-3">Patterns</h2>
+          {patternCards ? <StatGrid cards={patternCards} /> : <StatGridSkeleton count={6} />}
+        </section>
+
+        <section className="animate-fade-up" style={{ animationDelay: "130ms" }}>
+          <h2 className="label-caps mb-3">Activity</h2>
+          {activityCards ? <StatGrid cards={activityCards} /> : <StatGridSkeleton count={4} />}
         </section>
 
         {/* Appearance */}

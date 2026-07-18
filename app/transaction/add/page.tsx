@@ -13,7 +13,7 @@ import { createTransaction } from "@/lib/database";
 import { replaceSplitsForTransaction } from "@/lib/features/splits";
 import { uploadReceipt } from "@/lib/features/receipts";
 import type { NewTransactionInput } from "@/types";
-import type { TransactionExtras } from "@/types/features";
+import type { NewTransactionInputV4, TransactionExtras } from "@/types/features";
 
 export default function AddTransactionPage() {
   return (
@@ -42,10 +42,12 @@ function AddTransactionContent() {
     );
   }
 
-  const handleSubmit = async (input: NewTransactionInput, extras: TransactionExtras): Promise<void> => {
+  const handleSubmit = async (input: NewTransactionInputV4, extras: TransactionExtras): Promise<void> => {
     if (!user) return;
     try {
-      const txn = await createTransaction(user.id, input);
+      // The frozen createTransaction spreads the whole input into the insert,
+      // so the v4 columns (type 'transfer', transfer_to..., contact_id) pass through.
+      const txn = await createTransaction(user.id, input as NewTransactionInput);
       if (extras.splits.length > 0) {
         await replaceSplitsForTransaction(user.id, txn.id, extras.splits);
       }

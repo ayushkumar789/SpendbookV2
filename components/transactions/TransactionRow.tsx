@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Camera, Repeat, Trash2, Users } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Camera, Repeat, Trash2, Users } from "lucide-react";
 import { cn, formatCurrency, formatDate, methodLabel } from "@/lib/helpers";
+import { ContactAvatar } from "@/components/contacts/ContactPicker";
 import type { PaymentMethod, Transaction } from "@/types";
-import type { TransactionV2 } from "@/types/features";
+import type { Contact, TransactionTypeV4, TransactionV4 } from "@/types/features";
 
 interface TransactionRowProps {
   txn: Transaction;
@@ -16,6 +17,8 @@ interface TransactionRowProps {
   hasSplit?: boolean;
   /** flash-highlight (arrived via global search) */
   highlight?: boolean;
+  /** tagged person, if the caller resolved txn.contact_id */
+  contact?: Contact | null;
 }
 
 /** Tap to edit · swipe left or long-press to delete (mobile). */
@@ -27,9 +30,21 @@ export function TransactionRow({
   readOnly = false,
   hasSplit = false,
   highlight = false,
+  contact = null,
 }: TransactionRowProps) {
-  const isIn = txn.type === "in";
-  const receiptPath = (txn as TransactionV2).receipt_url;
+  const v4 = txn as TransactionV4;
+  const txType = txn.type as TransactionTypeV4;
+  const isTransfer = txType === "transfer";
+  const isIn = txType === "in";
+  const receiptPath = v4.receipt_url;
+  const accent = isTransfer ? "var(--sky)" : isIn ? "var(--jade)" : "var(--rose)";
+  const accentChart = isTransfer ? "var(--sky-chart)" : isIn ? "var(--jade-chart)" : "var(--rose-chart)";
+  const accentSoft = isTransfer ? "var(--sky-soft)" : isIn ? "var(--jade-soft)" : "var(--rose-soft)";
+
+  const bankName = (id: string | null | undefined): string => {
+    if (!id) return "Cash";
+    return methods.find((m) => m.id === id)?.bank_name ?? "Deleted";
+  };
   const [dragX, setDragX] = useState(0);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const longPress = useRef<number | null>(null);
@@ -111,14 +126,16 @@ export function TransactionRow({
         )}
         style={{
           transform: `translateX(${dragX}px)`,
-          boxShadow: `inset 3px 0 0 ${isIn ? "var(--jade-chart)" : "var(--rose-chart)"}`,
+          boxShadow: `inset 3px 0 0 ${accentChart}`,
         }}
       >
         <span
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-          style={{ background: isIn ? "var(--jade-soft)" : "var(--rose-soft)" }}
+          style={{ background: accentSoft }}
         >
-          {isIn ? (
+          {isTransfer ? (
+            <ArrowLeftRight size={18} style={{ color: "var(--sky)" }} />
+          ) : isIn ? (
             <ArrowDownLeft size={18} style={{ color: "var(--jade)" }} />
           ) : (
             <ArrowUpRight size={18} style={{ color: "var(--rose)" }} />
@@ -127,7 +144,23 @@ export function TransactionRow({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-semibold text-ink">{txn.category}</span>
+            <span className="truncate text-sm font-semibold text-ink">
+              {isTransfer ? (
+                <>
+                  Transfer{" "}
+                  <span className="font-medium text-ink3">
+                    · {bankName(txn.payment_method_id)} → {bankName(v4.transfer_to_payment_method_id)}
+                  </span>
+                </>
+              ) : (
+                txn.category
+              )}
+            </span>
+            {contact ? (
+              <span title={contact.name} aria-label={`Tagged: ${contact.name}`} className="shrink-0">
+                <ContactAvatar name={contact.name} color={contact.avatar_color} size={20} />
+              </span>
+            ) : null}
             {txn.is_recurring ? (
               <span className="flex shrink-0 items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-brand-deep">
                 <Repeat className="h-2.5 w-2.5" /> {txn.recurrence_interval}
@@ -142,14 +175,14 @@ export function TransactionRow({
           </div>
           <p className="mt-0.5 truncate text-xs text-ink3">
             {formatDate(txn.date)}
-            {/* Public shared viewers can't read the owner's methods — omit rather than mislead */}
-            {readOnly && txn.payment_method_id ? "" : ` · ${methodLabel(txn.payment_method_id, methods)}`}
+            {/* Transfers already say From → To in the title; public shared viewers can't read the owner's methods — omit rather than mislead */}
+            {isTransfer || (readOnly && txn.payment_method_id) ? "" : ` · ${methodLabel(txn.payment_method_id, methods)}`}
             {txn.note ? ` · ${txn.note}` : ""}
           </p>
         </div>
 
-        <p className={cn("amount shrink-0 text-[15px] font-semibold", isIn ? "text-jade" : "text-rose")}>
-          {isIn ? "+" : "−"}
+        <p className="amount shrink-0 text-[15px] font-semibold" style={{ color: accent }}>
+          {isTransfer ? "" : isIn ? "+" : "−"}
           {formatCurrency(Number(txn.amount))}
         </p>
       </div>

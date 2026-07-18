@@ -36,6 +36,9 @@
   --rose: #d8442e;
   --rose-chart: #d8442e;
   --rose-soft: rgba(216, 68, 46, 0.09);
+  --sky: #0a87a0;
+  --sky-chart: #0a87a0;
+  --sky-soft: rgba(10, 135, 160, 0.1);
   --warn: #9a6b00;
 
   --chart-grid: #e6e9dc;
@@ -82,6 +85,9 @@
   --rose: #ff8672;
   --rose-chart: #e04e3c;
   --rose-soft: rgba(255, 134, 114, 0.1);
+  --sky: #55c9e8;
+  --sky-chart: #28a4c4;
+  --sky-soft: rgba(85, 201, 232, 0.1);
   --warn: #f5c044;
 
   --chart-grid: rgba(242, 244, 238, 0.07);

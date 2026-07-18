@@ -1,8 +1,9 @@
 import * as XLSX from "xlsx";
+import { differenceInCalendarDays, format, parseISO, subDays } from "date-fns";
 import { getSupabase } from "@/lib/supabase";
 import { getBooksWithStats, getTransactionsForBook, getPaymentMethods, upsertUserProfile } from "@/lib/database";
-import { formatDate, methodLabel } from "@/lib/helpers";
-import type { AccountStats } from "@/types/features";
+import { formatDate, methodLabel, todayISO } from "@/lib/helpers";
+import type { AccountStats, AccountStatsV4, StatHighlight } from "@/types/features";
 
 function fail(context: string, error: { message: string } | null): never {
   throw new Error(`${context}: ${error?.message ?? "unknown error"}`);
@@ -20,6 +21,117 @@ export async function getAccountStats(ownerId: string): Promise<AccountStats> {
     }),
     { books: 0, transactions: 0, cashIn: 0, cashOut: 0 }
   );
+}
+
+/**
+ * v4 rich account stats — one transactions query + a books head-count.
+ * Self transfers count toward activity (they were logged) but never toward
+ * any money total.
+ */
+export async function getAccountStatsV4(ownerId: string): Promise<AccountStatsV4> {
+  const supabase = getSupabase();
+  const [booksRes, txRes] = await Promise.all([
+    supabase.from("books").select("id", { count: "exact", head: true }).eq("owner_id", ownerId),
+    supabase.from("transactions").select("type, amount, category, date").eq("owner_id", ownerId),
+  ]);
+  if (booksRes.error) fail("Failed to count books", booksRes.error);
+  if (txRes.error) fail("Failed to load transactions", txRes.error);
+
+  const rows = (txRes.data ?? []) as Array<{ type: string; amount: number; category: string; date: string }>;
+
+  let cashIn = 0;
+  let cashOut = 0;
+  let biggestExpense: StatHighlight | null = null;
+  let largestCashIn: StatHighlight | null = null;
+  const netByMonth = new Map<string, number>();
+  const byCategory = new Map<string, { count: number; total: number }>();
+  const activeDates = new Set<string>();
+  const weekdayCounts = new Map<string, number>();
+  let moneyCount = 0;
+
+  for (const r of rows) {
+    activeDates.add(r.date);
+    const weekday = format(parseISO(r.date), "EEEE");
+    weekdayCounts.set(weekday, (weekdayCounts.get(weekday) ?? 0) + 1);
+
+    if (r.type !== "in" && r.type !== "out") continue; // transfers: activity only
+    const amt = Number(r.amount);
+    moneyCount += 1;
+    if (r.type === "in") {
+      cashIn += amt;
+      if (!largestCashIn || amt > largestCashIn.amount) {
+        largestCashIn = { amount: amt, category: r.category, date: r.date };
+      }
+    } else {
+      cashOut += amt;
+      if (!biggestExpense || amt > biggestExpense.amount) {
+        biggestExpense = { amount: amt, category: r.category, date: r.date };
+      }
+    }
+    const monthKey = r.date.slice(0, 7);
+    netByMonth.set(monthKey, (netByMonth.get(monthKey) ?? 0) + (r.type === "in" ? amt : -amt));
+    const cat = byCategory.get(r.category) ?? { count: 0, total: 0 };
+    cat.count += 1;
+    cat.total += amt;
+    byCategory.set(r.category, cat);
+  }
+
+  let bestMonth: AccountStatsV4["bestMonth"] = null;
+  for (const [key, net] of netByMonth) {
+    if (!bestMonth || net > bestMonth.net) {
+      bestMonth = { label: format(parseISO(`${key}-01`), "MMMM yyyy"), net };
+    }
+  }
+
+  let topCategory: AccountStatsV4["topCategory"] = null;
+  for (const [name, { count, total }] of byCategory) {
+    if (!topCategory || count > topCategory.count || (count === topCategory.count && total > topCategory.total)) {
+      topCategory = { name, count, total };
+    }
+  }
+
+  let topWeekday: AccountStatsV4["topWeekday"] = null;
+  for (const [name, count] of weekdayCounts) {
+    if (!topWeekday || count > topWeekday.count) topWeekday = { name, count };
+  }
+
+  // Streaks over the distinct active dates (ISO strings sort chronologically)
+  const sortedDates = [...activeDates].sort();
+  let longestStreak = 0;
+  let run = 0;
+  let prev: string | null = null;
+  for (const d of sortedDates) {
+    run = prev !== null && differenceInCalendarDays(parseISO(d), parseISO(prev)) === 1 ? run + 1 : 1;
+    if (run > longestStreak) longestStreak = run;
+    prev = d;
+  }
+
+  // Current streak: consecutive days ending today (or yesterday, so it
+  // doesn't reset before the user logs anything today).
+  let currentStreak = 0;
+  const today = todayISO();
+  let cursor = activeDates.has(today) ? parseISO(today) : subDays(parseISO(today), 1);
+  while (activeDates.has(format(cursor, "yyyy-MM-dd"))) {
+    currentStreak += 1;
+    cursor = subDays(cursor, 1);
+  }
+
+  return {
+    books: booksRes.count ?? 0,
+    transactions: rows.length,
+    cashIn,
+    cashOut,
+    biggestExpense,
+    bestMonth,
+    topCategory,
+    avgMonthlySpend: netByMonth.size > 0 ? cashOut / netByMonth.size : 0,
+    avgTransactionAmount: moneyCount > 0 ? (cashIn + cashOut) / moneyCount : 0,
+    largestCashIn,
+    currentStreak,
+    longestStreak,
+    activeDays: activeDates.size,
+    topWeekday,
+  };
 }
 
 /** Renames the profile by re-upserting the users row (keeps other fields). */
@@ -42,19 +154,25 @@ export async function exportAllData(ownerId: string): Promise<void> {
 
   for (const book of books) {
     const transactions = await getTransactionsForBook(book.id);
-    const rows = transactions.map((t) => [
-      formatDate(t.date, "dd/MM/yyyy"),
-      t.type === "in" ? "Cash In" : "Cash Out",
-      t.category,
-      t.type === "in" ? Number(t.amount) : -Number(t.amount),
-      methodLabel(t.payment_method_id, methods),
-      t.note ?? "",
-    ]);
+    const rows = transactions.map((t) => {
+      const txnType = t.type as string;
+      return [
+        formatDate(t.date, "dd/MM/yyyy"),
+        txnType === "in" ? "Cash In" : txnType === "transfer" ? "Transfer" : "Cash Out",
+        t.category,
+        txnType === "out" ? -Number(t.amount) : Number(t.amount),
+        methodLabel(t.payment_method_id, methods),
+        t.note ?? "",
+      ];
+    });
+    // Recompute totals from the rows — the frozen book stats lump transfers into Cash Out.
+    const cashIn = transactions.reduce((s, t) => (t.type === "in" ? s + Number(t.amount) : s), 0);
+    const cashOut = transactions.reduce((s, t) => (t.type === "out" ? s + Number(t.amount) : s), 0);
     const ws = XLSX.utils.aoa_to_sheet([
       [`SpendBook — ${book.name}`],
-      ["Cash In", book.stats.cashIn],
-      ["Cash Out", book.stats.cashOut],
-      ["Net Balance", book.stats.net],
+      ["Cash In", cashIn],
+      ["Cash Out", cashOut],
+      ["Net Balance", cashIn - cashOut],
       [],
       ["Date", "Type", "Category", "Amount (INR)", "Payment Method", "Note"],
       ...rows,
@@ -91,7 +209,7 @@ export async function deleteAllUserData(ownerId: string): Promise<void> {
     }
   }
 
-  const tables = ["profile_links", "wallet_documents", "savings_goals", "books", "payment_methods", "users"];
+  const tables = ["profile_links", "wallet_documents", "savings_goals", "books", "payment_methods", "contacts", "users"];
   for (const table of tables) {
     const column = table === "users" ? "id" : "owner_id";
     const { error } = await supabase.from(table).delete().eq(column, ownerId);

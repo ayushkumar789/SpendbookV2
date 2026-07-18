@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import {
+  ArrowLeftRight,
   Banknote,
+  BookUser,
   Camera,
   ChevronRight,
   Plus,
   Repeat,
   Trash2,
+  UserRound,
   Users,
   X,
 } from "lucide-react";
@@ -15,27 +19,30 @@ import { BANKS, CATEGORIES, PAYMENT_TYPE_LABEL } from "@/lib/constants";
 import { cn, formatCurrency, methodLabel, todayISO } from "@/lib/helpers";
 import { nextDate } from "@/lib/recurring";
 import { getReceiptSignedUrl } from "@/lib/features/receipts";
+import { getContact } from "@/lib/features/contacts";
 import { Button } from "@/components/ui/Button";
 import { FieldWrap, Textarea } from "@/components/ui/Input";
 import { AdaptiveDialog } from "@/components/ui/Modal";
 import { InitialBadge } from "@/components/ui/Badge";
+import { ContactAvatar, ContactPicker } from "@/components/contacts/ContactPicker";
+import type { PaymentMethod, RecurrenceInterval } from "@/types";
 import type {
-  NewTransactionInput,
-  PaymentMethod,
-  RecurrenceInterval,
-  Transaction,
-  TransactionType,
-} from "@/types";
-import type { SplitDraft, TransactionExtras } from "@/types/features";
+  Contact,
+  NewTransactionInputV4,
+  SplitDraft,
+  TransactionExtras,
+  TransactionTypeV4,
+  TransactionV4,
+} from "@/types/features";
 
 interface TransactionFormProps {
   bookId: string;
-  initial?: Transaction;
+  initial?: TransactionV4;
   initialSplits?: SplitDraft[];
   initialReceiptPath?: string | null;
   methods: PaymentMethod[];
   submitLabel: string;
-  onSubmit: (input: NewTransactionInput, extras: TransactionExtras) => Promise<void>;
+  onSubmit: (input: NewTransactionInputV4, extras: TransactionExtras) => Promise<void>;
 }
 
 const INTERVALS: RecurrenceInterval[] = ["daily", "weekly", "monthly", "yearly"];
@@ -69,17 +76,44 @@ export function TransactionForm({
   submitLabel,
   onSubmit,
 }: TransactionFormProps) {
-  const [type, setType] = useState<TransactionType>(initial?.type ?? "out");
+  // The DB may hold 'transfer' even though the frozen core type only knows in|out.
+  const initialType = (initial?.type as TransactionTypeV4 | undefined) ?? "out";
+  const [type, setType] = useState<TransactionTypeV4>(initialType);
   const [amount, setAmount] = useState(initial ? formatAmountTyping(String(initial.amount)) : "");
-  const [category, setCategory] = useState(initial?.category ?? (CATEGORIES[0] as string));
-  const [methodId, setMethodId] = useState<string | null>(initial?.payment_method_id ?? null);
+  const [category, setCategory] = useState(
+    initial && initial.category !== "Transfer" ? initial.category : (CATEGORIES[0] as string)
+  );
+  const [methodId, setMethodId] = useState<string | null>(
+    initialType !== "transfer" ? (initial?.payment_method_id ?? null) : null
+  );
   const [note, setNote] = useState(initial?.note ?? "");
   const [date, setDate] = useState(initial?.date ?? todayISO());
   const [recurring, setRecurring] = useState(initial?.is_recurring ?? false);
   const [interval, setInterval] = useState<RecurrenceInterval>(initial?.recurrence_interval ?? "monthly");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [errors, setErrors] = useState<{ amount?: string; date?: string; split?: string }>({});
+  const [errors, setErrors] = useState<{ amount?: string; date?: string; split?: string; transfer?: string }>({});
   const [busy, setBusy] = useState(false);
+
+  /* ————— Self transfer (v4) ————— */
+  const [transferFrom, setTransferFrom] = useState<string | null>(
+    initialType === "transfer" ? (initial?.payment_method_id ?? null) : null
+  );
+  const [transferTo, setTransferTo] = useState<string | null>(initial?.transfer_to_payment_method_id ?? null);
+  const [transferPicker, setTransferPicker] = useState<"from" | "to" | null>(null);
+  const isTransfer = type === "transfer";
+
+  /* ————— Contact tag (v4) ————— */
+  const [contact, setContact] = useState<Contact | null>(null);
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  const [splitContactPickerOpen, setSplitContactPickerOpen] = useState(false);
+
+  useEffect(() => {
+    const cid = initial?.contact_id;
+    if (!cid) return;
+    getContact(cid)
+      .then((c) => setContact(c))
+      .catch(() => undefined);
+  }, [initial?.contact_id]);
 
   /* ————— Splits ————— */
   const [splitOn, setSplitOn] = useState(initialSplits.length > 0);
@@ -143,6 +177,10 @@ export function TransactionForm({
     const nextErrors: typeof errors = {};
     if (parsed <= 0) nextErrors.amount = "Enter an amount greater than zero";
     if (!date) nextErrors.date = "Pick a date";
+    if (isTransfer) {
+      if (!transferFrom || !transferTo) nextErrors.transfer = "Pick both the From and To accounts";
+      else if (transferFrom === transferTo) nextErrors.transfer = "From and To cannot be the same account";
+    }
     const activeSplits = splitOn && type === "out" ? splits : [];
     if (activeSplits.length > 0 && Math.abs(splitSum - parsed) > 0.01) {
       nextErrors.split = `Shares add up to ${formatCurrency(splitSum)} — they must equal ${formatCurrency(parsed)}`;
@@ -157,17 +195,21 @@ export function TransactionForm({
           book_id: bookId,
           type,
           amount: parsed,
-          category,
-          payment_method_id: methodId,
+          category: isTransfer ? "Transfer" : category,
+          payment_method_id: isTransfer ? transferFrom : methodId,
           note: note.trim() || null,
           date,
-          is_recurring: recurring,
-          recurrence_interval: recurring ? interval : null,
-          next_recurrence_date: recurring ? nextDate(date, interval) : null,
+          // The frozen recurring engine can't copy the To-account column,
+          // so transfers are never recurring.
+          is_recurring: !isTransfer && recurring,
+          recurrence_interval: !isTransfer && recurring ? interval : null,
+          next_recurrence_date: !isTransfer && recurring ? nextDate(date, interval) : null,
+          transfer_to_payment_method_id: isTransfer ? transferTo : null,
+          contact_id: isTransfer ? null : (contact?.id ?? null),
         },
         {
           splits: activeSplits,
-          receiptFile,
+          receiptFile: isTransfer ? null : receiptFile,
           removeExistingReceipt: removeExisting && !receiptFile,
         }
       );
@@ -178,27 +220,41 @@ export function TransactionForm({
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-6">
-      {/* In / Out toggle */}
-      <div className="relative grid grid-cols-2 rounded-2xl border border-line bg-sunken p-1">
-        <span
-          className="absolute bottom-1 top-1 w-[calc(50%-0.25rem)] rounded-xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-          style={{
-            left: type === "in" ? "0.25rem" : "calc(50%)",
-            background: type === "in" ? "var(--jade-chart)" : "var(--rose-chart)",
-            boxShadow: `0 0 22px -4px ${type === "in" ? "var(--jade-chart)" : "var(--rose-chart)"}`,
-          }}
-        />
-        {(["in", "out"] as const).map((t) => (
+      {/* In / Out / Transfer toggle */}
+      <div className="relative grid grid-cols-3 rounded-2xl border border-line bg-sunken p-1">
+        {(() => {
+          const idx = type === "in" ? 0 : type === "out" ? 1 : 2;
+          const activeColor =
+            type === "in" ? "var(--jade-chart)" : type === "out" ? "var(--rose-chart)" : "var(--sky-chart)";
+          return (
+            <span
+              className="absolute bottom-1 top-1 rounded-xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              style={{
+                width: "calc((100% - 0.5rem) / 3)",
+                left: `calc(0.25rem + ${idx} * ((100% - 0.5rem) / 3))`,
+                background: activeColor,
+                boxShadow: `0 0 22px -4px ${activeColor}`,
+              }}
+            />
+          );
+        })()}
+        {(
+          [
+            { key: "in", label: "Cash In" },
+            { key: "out", label: "Cash Out" },
+            { key: "transfer", label: "Transfer" },
+          ] as const
+        ).map((t) => (
           <button
-            key={t}
+            key={t.key}
             type="button"
-            onClick={() => setType(t)}
+            onClick={() => setType(t.key)}
             className={cn(
-              "press relative z-10 rounded-xl py-3 text-[15px] font-bold tracking-tight transition-colors duration-300",
-              type === t ? "text-white" : "text-ink3 hover:text-ink"
+              "press relative z-10 rounded-xl py-3 text-[14px] font-bold tracking-tight transition-colors duration-300",
+              type === t.key ? "text-white" : "text-ink3 hover:text-ink"
             )}
           >
-            {t === "in" ? "Cash In" : "Cash Out"}
+            {t.label}
           </button>
         ))}
       </div>
@@ -231,7 +287,8 @@ export function TransactionForm({
         </div>
       </FieldWrap>
 
-      {/* Category chips */}
+      {/* Category chips — not needed for transfers */}
+      {!isTransfer ? (
       <FieldWrap label="Category">
         <div className="relative -mx-1">
           <div
@@ -261,8 +318,59 @@ export function TransactionForm({
           />
         </div>
       </FieldWrap>
+      ) : null}
+
+      {/* Transfer: From / To accounts */}
+      {isTransfer ? (
+        methods.length === 0 ? (
+          <div className="flex items-center gap-3.5 rounded-2xl border border-line bg-card p-4 animate-fade-in">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--sky-soft)" }}>
+              <ArrowLeftRight className="h-5 w-5" style={{ color: "var(--sky)" }} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink">Add a payment method first</p>
+              <p className="text-xs text-ink3">Transfers move money between two of your saved accounts.</p>
+            </div>
+            <Link
+              href="/payment-methods"
+              className="press shrink-0 rounded-full bg-brand px-3.5 py-2 text-[13px] font-bold text-on-brand"
+            >
+              Add
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 animate-fade-in">
+            {(
+              [
+                { key: "from" as const, label: "From account", value: transferFrom },
+                { key: "to" as const, label: "To account", value: transferTo },
+              ]
+            ).map(({ key, label, value }) => (
+              <FieldWrap key={key} label={label} error={key === "to" ? errors.transfer : undefined}>
+                <button
+                  type="button"
+                  onClick={() => setTransferPicker(key)}
+                  className={cn(
+                    "press row-sweep flex w-full items-center gap-3 rounded-xl border bg-card px-4 py-3 text-left transition-colors hover:border-line-strong",
+                    errors.transfer ? "border-rose" : "border-line"
+                  )}
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "var(--sky-soft)" }}>
+                    <ArrowLeftRight className="h-4 w-4" style={{ color: "var(--sky)" }} />
+                  </span>
+                  <span className={cn("flex-1 truncate text-sm font-semibold", value ? "text-ink" : "text-ink3")}>
+                    {value ? methodLabel(value, methods) : `Choose the ${key === "from" ? "source" : "destination"} account`}
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-ink3" />
+                </button>
+              </FieldWrap>
+            ))}
+          </div>
+        )
+      ) : null}
 
       {/* Payment method */}
+      {!isTransfer ? (
       <FieldWrap label="Paid via">
         <button
           type="button"
@@ -276,6 +384,30 @@ export function TransactionForm({
           <ChevronRight className="h-4 w-4 text-ink3" />
         </button>
       </FieldWrap>
+      ) : null}
+
+      {/* Person tag — not for transfers between your own accounts */}
+      {!isTransfer ? (
+        <FieldWrap label="Person · optional">
+          <button
+            type="button"
+            onClick={() => setContactPickerOpen(true)}
+            className="press row-sweep flex w-full items-center gap-3 rounded-xl border border-line bg-card px-4 py-3 text-left transition-colors hover:border-line-strong"
+          >
+            {contact ? (
+              <ContactAvatar name={contact.name} color={contact.avatar_color} />
+            ) : (
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-sunken">
+                <UserRound className="h-4 w-4 text-ink3" />
+              </span>
+            )}
+            <span className={cn("flex-1 truncate text-sm font-semibold", contact ? "text-ink" : "text-ink3")}>
+              {contact ? contact.name : "Tag a person (optional)"}
+            </span>
+            <ChevronRight className="h-4 w-4 text-ink3" />
+          </button>
+        </FieldWrap>
+      ) : null}
 
       <Textarea
         label="Note · optional"
@@ -326,8 +458,17 @@ export function TransactionForm({
                     }
                   }}
                   placeholder="Add a person and press Enter"
-                  className="h-11 flex-1 rounded-xl border border-line bg-card-hi px-3.5 text-sm text-ink outline-none transition-all focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-card-hi px-3.5 text-sm text-ink outline-none transition-all focus:border-brand focus:ring-4 focus:ring-brand-soft"
                 />
+                <button
+                  type="button"
+                  onClick={() => setSplitContactPickerOpen(true)}
+                  aria-label="Choose from contacts"
+                  title="Choose from contacts"
+                  className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-card-hi text-ink2 transition-colors hover:border-brand hover:text-brand-deep"
+                >
+                  <BookUser className="h-4 w-4" />
+                </button>
                 <Button type="button" variant="soft" size="md" icon={<Plus className="h-4 w-4" />} onClick={addPerson}>
                   Add
                 </Button>
@@ -406,7 +547,8 @@ export function TransactionForm({
         </div>
       ) : null}
 
-      {/* Recurring */}
+      {/* Recurring — hidden for transfers (the recurring engine can't copy the To account) */}
+      {!isTransfer ? (
       <div className="rounded-2xl border border-line bg-card p-4">
         <button type="button" onClick={() => setRecurring(!recurring)} className="flex w-full items-center gap-3" aria-pressed={recurring}>
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-soft">
@@ -436,8 +578,10 @@ export function TransactionForm({
           </div>
         ) : null}
       </div>
+      ) : null}
 
-      {/* Receipt */}
+      {/* Receipt — attach to spends/incomes, not internal transfers */}
+      {!isTransfer ? (
       <div className="rounded-2xl border border-line bg-card p-4">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-soft">
@@ -490,6 +634,7 @@ export function TransactionForm({
           </div>
         ) : null}
       </div>
+      ) : null}
 
       <Button type="submit" size="lg" loading={busy}>
         {submitLabel}
@@ -539,6 +684,54 @@ export function TransactionForm({
           ) : null}
         </div>
       </AdaptiveDialog>
+
+      {/* Transfer From/To account picker */}
+      <AdaptiveDialog
+        open={transferPicker !== null}
+        onClose={() => setTransferPicker(null)}
+        title={transferPicker === "from" ? "From account" : "To account"}
+      >
+        <div className="flex flex-col gap-1.5">
+          {methods.map((m) => {
+            const bank = BANKS.find((b) => b.key === m.bank_key);
+            const selected = (transferPicker === "from" ? transferFrom : transferTo) === m.id;
+            return (
+              <MethodOption
+                key={m.id}
+                selected={selected}
+                onClick={() => {
+                  if (transferPicker === "from") setTransferFrom(m.id);
+                  else setTransferTo(m.id);
+                  setErrors((prev) => ({ ...prev, transfer: undefined }));
+                  setTransferPicker(null);
+                }}
+                title={`${m.bank_name} ····${m.last_four_digits}`}
+                subtitle={m.payment_type === "upi" ? `UPI · ${m.upi_app_name ?? ""}` : PAYMENT_TYPE_LABEL[m.payment_type]}
+                badge={<InitialBadge text={m.bank_name.slice(0, 2).toUpperCase()} hex={bank?.hex ?? "#6D7365"} size={38} />}
+              />
+            );
+          })}
+        </div>
+      </AdaptiveDialog>
+
+      {/* Person tag picker */}
+      <ContactPicker
+        open={contactPickerOpen}
+        onClose={() => setContactPickerOpen(false)}
+        onSelect={setContact}
+        selectedId={contact?.id ?? null}
+      />
+
+      {/* Splits: pick a contact to pre-fill the name */}
+      <ContactPicker
+        open={splitContactPickerOpen}
+        onClose={() => setSplitContactPickerOpen(false)}
+        onSelect={(c) => {
+          if (c) setPersonName(c.name);
+        }}
+        allowNone={false}
+        title="Choose from contacts"
+      />
     </form>
   );
 }

@@ -36,7 +36,8 @@ function totalsBetween(transactions: Transaction[], from: Date, to: Date): Month
     const d = parseISO(t.date);
     if (d >= from && d <= to) {
       if (t.type === "in") cashIn += Number(t.amount);
-      else cashOut += Number(t.amount);
+      else if (t.type === "out") cashOut += Number(t.amount);
+      // transfers are excluded from every insights total
     }
   }
   return { cashIn, cashOut, net: cashIn - cashOut };

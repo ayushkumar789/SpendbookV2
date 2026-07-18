@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight, CornerDownLeft, Search } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, CornerDownLeft, Search } from "lucide-react";
 import { searchTransactions } from "@/lib/features/search";
 import { cn, formatCurrency, formatDate } from "@/lib/helpers";
 import { useAuth } from "@/hooks/useAuth";
-import type { SearchHit } from "@/types/features";
+import type { SearchHit, TransactionTypeV4 } from "@/types/features";
 
 /**
  * Command-palette style global search across every book's transactions.
@@ -156,7 +156,10 @@ export function GlobalSearch() {
                     {g.items.map((hit, idx) => {
                       runningIndex += 1;
                       const i = runningIndex;
-                      const isIn = hit.type === "in";
+                      const hitType = hit.type as TransactionTypeV4;
+                      const isTransfer = hitType === "transfer";
+                      const isIn = hitType === "in";
+                      const hitColor = isTransfer ? "var(--sky)" : isIn ? "var(--jade)" : "var(--rose)";
                       return (
                         <button
                           key={hit.id}
@@ -170,9 +173,11 @@ export function GlobalSearch() {
                         >
                           <span
                             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-                            style={{ background: isIn ? "var(--jade-soft)" : "var(--rose-soft)" }}
+                            style={{ background: isTransfer ? "var(--sky-soft)" : isIn ? "var(--jade-soft)" : "var(--rose-soft)" }}
                           >
-                            {isIn ? (
+                            {isTransfer ? (
+                              <ArrowLeftRight className="h-3.5 w-3.5" style={{ color: "var(--sky)" }} />
+                            ) : isIn ? (
                               <ArrowDownLeft className="h-3.5 w-3.5" style={{ color: "var(--jade)" }} />
                             ) : (
                               <ArrowUpRight className="h-3.5 w-3.5" style={{ color: "var(--rose)" }} />
@@ -185,8 +190,8 @@ export function GlobalSearch() {
                             </span>
                             <span className="block text-xs text-ink3">{formatDate(hit.date)}</span>
                           </span>
-                          <span className={cn("amount shrink-0 text-sm font-semibold", isIn ? "text-jade" : "text-rose")}>
-                            {isIn ? "+" : "−"}
+                          <span className="amount shrink-0 text-sm font-semibold" style={{ color: hitColor }}>
+                            {isTransfer ? "" : isIn ? "+" : "−"}
                             {formatCurrency(Number(hit.amount))}
                           </span>
                           {i === selected ? <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-ink3" /> : null}

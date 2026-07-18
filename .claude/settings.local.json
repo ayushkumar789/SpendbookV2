@@ -20,7 +20,8 @@
       "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 30; if \\($LASTEXITCODE -eq 0\\) { \"TYPECHECK PASS\" })",
       "Bash(printf '\\\\n-- ═══════════════════════════════════════════════════════════\\\\n-- V3 additions \\(wallet vault, profile links\\) — see schema-v3-additions.sql\\\\n-- ═══════════════════════════════════════════════════════════\\\\n')",
       "Bash(tail -n +8 supabase/schema-v3-additions.sql)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "PowerShell(npx tsc --noEmit)"
     ]
   }
 }

@@ -15,7 +15,8 @@ function totals(transactions: Transaction[]): { cashIn: number; cashOut: number;
   let cashOut = 0;
   for (const t of transactions) {
     if (t.type === "in") cashIn += Number(t.amount);
-    else cashOut += Number(t.amount);
+    else if (t.type === "out") cashOut += Number(t.amount);
+    // self transfers don't change the totals
   }
   return { cashIn, cashOut, net: cashIn - cashOut };
 }
@@ -102,15 +103,17 @@ export function exportBookPdf({ book, transactions, methods, rangeLabel }: Expor
       doc.setFontSize(9);
     }
     let x = margin + 6;
+    const txnType = txn.type as string;
     const cells = [
       formatDate(txn.date, "dd/MM/yyyy"),
-      txn.type === "in" ? "IN" : "OUT",
+      txnType === "in" ? "IN" : txnType === "transfer" ? "TRF" : "OUT",
       txn.category,
-      `${txn.type === "in" ? "+" : "-"}${formatCurrencyPdf(Number(txn.amount))}`,
+      `${txnType === "in" ? "+" : txnType === "transfer" ? "" : "-"}${formatCurrencyPdf(Number(txn.amount))}`,
       methodLabel(txn.payment_method_id, methods),
       txn.note ?? "",
     ];
-    const typeColor: [number, number, number] = txn.type === "in" ? [27, 158, 116] : [217, 67, 92];
+    const typeColor: [number, number, number] =
+      txnType === "in" ? [27, 158, 116] : txnType === "transfer" ? [10, 135, 160] : [217, 67, 92];
     cells.forEach((cell, i) => {
       if (i === 1) {
         doc.setTextColor(typeColor[0], typeColor[1], typeColor[2]);
@@ -145,14 +148,18 @@ export function exportBookExcel({ book, transactions, methods, rangeLabel }: Exp
     [],
     ["Date", "Type", "Category", "Amount (INR)", "Payment Method", "Note"],
   ];
-  const rows = transactions.map((txn) => [
-    formatDate(txn.date, "dd/MM/yyyy"),
-    txn.type === "in" ? "Cash In" : "Cash Out",
-    txn.category,
-    txn.type === "in" ? Number(txn.amount) : -Number(txn.amount),
-    methodLabel(txn.payment_method_id, methods),
-    txn.note ?? "",
-  ]);
+  const rows = transactions.map((txn) => {
+    const txnType = txn.type as string;
+    return [
+      formatDate(txn.date, "dd/MM/yyyy"),
+      txnType === "in" ? "Cash In" : txnType === "transfer" ? "Transfer" : "Cash Out",
+      txn.category,
+      // transfers are net-zero: recorded at face value, not signed
+      txnType === "out" ? -Number(txn.amount) : Number(txn.amount),
+      methodLabel(txn.payment_method_id, methods),
+      txn.note ?? "",
+    ];
+  });
 
   const ws = XLSX.utils.aoa_to_sheet([...header, ...rows]);
   ws["!cols"] = [{ wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 16 }, { wch: 28 }, { wch: 40 }];

@@ -51,7 +51,8 @@ export function SpendingBarChart({ transactions }: { transactions: Transaction[]
         const d = parseISO(t.date);
         if (d >= from && d <= to) {
           if (t.type === "in") cashIn += Number(t.amount);
-          else cashOut += Number(t.amount);
+          else if (t.type === "out") cashOut += Number(t.amount);
+          // transfers move money between own accounts — excluded from both
         }
       }
       return { month: format(monthDate, "MMM"), cashIn, cashOut };

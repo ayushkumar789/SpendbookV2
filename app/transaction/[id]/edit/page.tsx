@@ -15,7 +15,13 @@ import { deleteTransaction, getTransaction, updateTransaction } from "@/lib/data
 import { getSplitsForTransaction, replaceSplitsForTransaction } from "@/lib/features/splits";
 import { removeReceipt, uploadReceipt } from "@/lib/features/receipts";
 import type { NewTransactionInput, Transaction } from "@/types";
-import type { SplitDraft, TransactionExtras, TransactionV2 } from "@/types/features";
+import type {
+  NewTransactionInputV4,
+  SplitDraft,
+  TransactionExtras,
+  TransactionV2,
+  TransactionV4,
+} from "@/types/features";
 
 export default function EditTransactionPage() {
   return (
@@ -46,10 +52,12 @@ function EditTransactionContent() {
       .finally(() => setLoading(false));
   }, [params.id, toast]);
 
-  const handleSubmit = async (input: NewTransactionInput, extras: TransactionExtras): Promise<void> => {
+  const handleSubmit = async (input: NewTransactionInputV4, extras: TransactionExtras): Promise<void> => {
     if (!user) return;
     try {
-      await updateTransaction(params.id, input);
+      // The frozen updateTransaction passes the patch straight to Supabase,
+      // so the v4 columns (type 'transfer', transfer_to..., contact_id) pass through.
+      await updateTransaction(params.id, input as NewTransactionInput);
       await replaceSplitsForTransaction(user.id, params.id, extras.splits);
       const existingPath = (txn as TransactionV2 | null)?.receipt_url ?? null;
       if (extras.receiptFile) {
@@ -92,7 +100,7 @@ function EditTransactionContent() {
           <div className="animate-fade-up">
             <TransactionForm
               bookId={txn.book_id}
-              initial={txn}
+              initial={txn as TransactionV4}
               initialSplits={splits}
               initialReceiptPath={(txn as TransactionV2).receipt_url ?? null}
               methods={methods}

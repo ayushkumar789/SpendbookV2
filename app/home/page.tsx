@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { KeyRound, Plus } from "lucide-react";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { PullIndicator, usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useBooks } from "@/hooks/useBooks";
 import { useAuth } from "@/hooks/useAuth";
+import { getTransferTotalsByBook } from "@/lib/features/insights";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -34,6 +35,27 @@ function HomeContent() {
   const { books, loading, error, refresh } = useBooks();
   const router = useRouter();
   const { pull, refreshing } = usePullToRefresh(refresh);
+
+  // The frozen book-stats query counts self transfers as Cash Out;
+  // strip them back out so the cards show true totals.
+  const [transferTotals, setTransferTotals] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (!user) return;
+    getTransferTotalsByBook(user.id)
+      .then(setTransferTotals)
+      .catch(() => setTransferTotals(new Map()));
+  }, [user, books]);
+
+  const adjustedBooks = useMemo(
+    () =>
+      books.map((b) => {
+        const transfers = transferTotals.get(b.id) ?? 0;
+        if (transfers === 0) return b;
+        const cashOut = b.stats.cashOut - transfers;
+        return { ...b, stats: { ...b.stats, cashOut, net: b.stats.cashIn - cashOut } };
+      }),
+    [books, transferTotals]
+  );
 
   // Desktop shortcut: N → new book
   useEffect(() => {
@@ -106,7 +128,7 @@ function HomeContent() {
           />
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {books.map((b, i) => (
+            {adjustedBooks.map((b, i) => (
               <BookCard key={b.id} book={b} index={i} />
             ))}
           </div>

@@ -23,12 +23,15 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { usePaymentMethods } from "@/hooks/usePaymentMethods";
 import { deleteTransaction, getBook } from "@/lib/database";
 import { getBookSplitSummary, type BookSplitSummary } from "@/lib/features/splits";
+import { getContacts } from "@/lib/features/contacts";
 import { exportBookExcel, exportBookPdf } from "@/lib/export";
 import { bookColorHex } from "@/lib/constants";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { formatCurrency } from "@/lib/helpers";
 import { SplashScreen } from "@/components/ui/LoadingSpinner";
-import type { Book, Transaction, TransactionFilters } from "@/types";
+import type { Book, Transaction } from "@/types";
+import type { Contact, TransactionFiltersV4, TransactionV4 } from "@/types/features";
 
 const PAGE_SIZE = 30;
 
@@ -49,13 +52,15 @@ function BookDetailContent() {
   const highlightId = searchParams.get("tx");
   const { toast } = useToast();
 
+  const { user } = useAuth();
   const [book, setBook] = useState<Book | null>(null);
   const [bookLoading, setBookLoading] = useState(true);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [splitSummary, setSplitSummary] = useState<BookSplitSummary | null>(null);
   const { transactions, loading: txLoading, refresh } = useTransactions(params.id);
   const { methods } = usePaymentMethods();
 
-  const [filters, setFilters] = useState<TransactionFilters>({ type: "all", category: "all", from: null, to: null });
+  const [filters, setFilters] = useState<TransactionFiltersV4>({ type: "all", category: "all", from: null, to: null });
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [shareOpen, setShareOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -77,6 +82,15 @@ function BookDetailContent() {
   useEffect(() => {
     void loadBook();
   }, [loadBook]);
+
+  useEffect(() => {
+    if (!user) return;
+    getContacts(user.id)
+      .then(setContacts)
+      .catch(() => setContacts([]));
+  }, [user]);
+
+  const contactById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
 
   const refreshAll = useCallback(async () => {
     await Promise.all([refresh(), loadBook()]);
@@ -267,6 +281,7 @@ function BookDetailContent() {
                           key={t.id}
                           txn={t}
                           methods={methods}
+                          contact={contactById.get((t as TransactionV4).contact_id ?? "") ?? null}
                           hasSplit={splitSummary?.transactionIds.has(t.id) ?? false}
                           highlight={t.id === highlightId}
                           onEdit={(txn) => router.push(`/transaction/${txn.id}/edit?bookId=${params.id}`)}
