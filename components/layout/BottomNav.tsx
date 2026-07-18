@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, Flag, Home, Link2, Settings, ShieldCheck, Sparkles } from "lucide-react";
+import { CreditCard, Flag, Home, Landmark, Link2, Settings, ShieldCheck, Sparkles } from "lucide-react";
 import { cn } from "@/lib/helpers";
 
 const NAV = [
   { href: "/home", label: "Home", icon: Home },
+  { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/insights", label: "Insights", icon: Sparkles },
   { href: "/goals", label: "Goals", icon: Flag },
   { href: "/wallet", label: "Wallet", icon: ShieldCheck },

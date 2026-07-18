@@ -1,4 +1,4 @@
-import type { Book, BookStats, NewTransactionInput, Transaction } from "@/types";
+import type { Book, BookStats, NewTransactionInput, PaymentMethod, Transaction } from "@/types";
 
 /* ————— v2 feature types (kept out of types/index.ts by design) ————— */
 
@@ -221,6 +221,61 @@ export interface SavedSharedBookCard extends SavedSharedBook {
     color_tag: string;
     stats: BookStats;
   } | null;
+}
+
+/* ————— v6: account groups + live balances ————— */
+
+export interface AccountGroup {
+  id: string;
+  owner_id: string;
+  name: string;
+  bank_key: string;
+  bank_name: string;
+  color: string;
+  show_on_profile: boolean;
+  created_at: string;
+}
+
+export interface AccountGroupMember {
+  id: string;
+  group_id: string;
+  payment_method_id: string;
+  owner_id: string;
+}
+
+export interface AccountSnapshot {
+  id: string;
+  group_id: string;
+  owner_id: string;
+  balance: number;
+  snapshot_date: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface NewAccountGroupInput {
+  name: string;
+  bank_key: string;
+  bank_name: string;
+  color: string;
+}
+
+/** Everything an account card needs: the group, its member payment methods,
+ *  the latest snapshot and the computed live balance (null = no snapshot yet). */
+export interface AccountGroupWithDetails extends AccountGroup {
+  members: PaymentMethod[];
+  latestSnapshot: AccountSnapshot | null;
+  liveBalance: number | null;
+}
+
+/** One balance card on the public profile. Only the name, color, balance
+ *  and last-updated stamp — never payment method details. */
+export interface PublicAccountBalance {
+  id: string;
+  name: string;
+  color: string;
+  balance: number | null;
+  updatedAt: string | null;
 }
 
 export interface AccountStatsV4 {

@@ -6,6 +6,7 @@ import {
   CreditCard,
   Flag,
   Home,
+  Landmark,
   Link2,
   PanelLeftClose,
   PanelLeftOpen,
@@ -19,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const NAV = [
   { href: "/home", label: "Home", icon: Home },
+  { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/insights", label: "Insights", icon: Sparkles },
   { href: "/goals", label: "Goals", icon: Flag },
   { href: "/wallet", label: "Wallet", icon: ShieldCheck },

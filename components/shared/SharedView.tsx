@@ -1,27 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowDownLeft,
   ArrowLeft,
   ArrowLeftRight,
   ArrowUpRight,
+  Banknote,
+  BookUser,
+  CalendarDays,
+  Camera,
   Eye,
   LogIn,
   Pencil,
   Plus,
+  Repeat,
   ScanEye,
-  Trash2,
+  StickyNote,
+  Users,
   X,
 } from "lucide-react";
-import {
-  createTransaction,
-  deleteTransaction,
-  getSharedTransactions,
-  subscribeToSharedBook,
-  updateTransaction,
-} from "@/lib/database";
+import { getSharedTransactions, subscribeToSharedBook } from "@/lib/database";
 import {
   getSharedContacts,
   getSharedPaymentMethods,
@@ -29,16 +29,16 @@ import {
   resolveShareAccess,
   saveSharedBook,
 } from "@/lib/features/sharing";
+import { getSplitsForTransaction } from "@/lib/features/splits";
+import { getReceiptSignedUrl } from "@/lib/features/receipts";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import { CATEGORIES } from "@/lib/constants";
-import { cn, formatCurrency, formatDate, methodLabel, todayISO } from "@/lib/helpers";
+import { PAYMENT_TYPE_LABEL } from "@/lib/constants";
+import { formatCurrency, formatDate, methodLabel } from "@/lib/helpers";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { FieldWrap, Textarea } from "@/components/ui/Input";
 import { SplashScreen } from "@/components/ui/LoadingSpinner";
 import { OVERLAY_STYLE, PANEL_STYLE, useBodyScrollLock } from "@/components/ui/overlay";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -47,11 +47,11 @@ import { SpendingBarChart } from "@/components/dashboard/SpendingBarChart";
 import { CategoryPieChart } from "@/components/dashboard/CategoryPieChart";
 import { SetupNotice } from "@/components/layout/AppShell";
 import type { PaymentMethod, Transaction } from "@/types";
-import type { Contact, SharedBookAccess, TransactionV4 } from "@/types/features";
+import type { Contact, SharedBookAccess, Split, TransactionV4 } from "@/types/features";
 
 /** Live view of a shared book. Renders one of three access levels:
- *  view (redacted, read-only) · details (full read) · edit (read + write,
- *  sign-in required). */
+ *  view (redacted, read-only) · details (full read + drill-down) ·
+ *  edit (full-page add/edit, sign-in required). */
 export function SharedView({ shareId }: { shareId: string }) {
   const router = useRouter();
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
@@ -62,9 +62,7 @@ export function SharedView({ shareId }: { shareId: string }) {
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "gone" | "signin">("loading");
-
-  const [editorOpen, setEditorOpen] = useState<{ txn: TransactionV4 | null } | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null);
+  const [detailTxn, setDetailTxn] = useState<TransactionV4 | null>(null);
   const savedOnce = useRef(false);
 
   const load = useCallback(async () => {
@@ -172,6 +170,13 @@ export function SharedView({ shareId }: { shareId: string }) {
   const editorName =
     ((user?.user_metadata.full_name as string | undefined) ?? user?.email ?? "").split("@")[0];
 
+  // view: rows are inert · details: tap opens the detail overlay ·
+  // edit: tap opens the full-page editor (same form as the owner's).
+  const handleRowTap = (txn: TransactionV4): void => {
+    if (level === "details") setDetailTxn(txn);
+    else if (canEdit) router.push(`/shared/${shareId}/transaction/${txn.id}/edit`);
+  };
+
   return (
     <div className="relative z-10 min-h-screen pb-16">
       <header className="glass-surface sticky top-0 z-40 border-x-0 border-t-0">
@@ -196,7 +201,7 @@ export function SharedView({ shareId }: { shareId: string }) {
           {level === "edit"
             ? "You can add, edit and delete entries in this shared book. It updates in real time."
             : level === "details"
-              ? "You're viewing the full ledger — payment methods, contacts and notes included."
+              ? "You're viewing the full ledger — tap any entry for its complete details."
               : "You're viewing a read-only ledger. It updates in real time."}
         </div>
 
@@ -223,8 +228,7 @@ export function SharedView({ shareId }: { shareId: string }) {
                   level={level}
                   methods={methods}
                   contact={contactById.get((t as TransactionV4).contact_id ?? "") ?? null}
-                  onEdit={canEdit ? (txn) => setEditorOpen({ txn }) : undefined}
-                  onDelete={canEdit ? setPendingDelete : undefined}
+                  onTap={level === "view" ? undefined : handleRowTap}
                 />
               ))}
             </div>
@@ -234,7 +238,7 @@ export function SharedView({ shareId }: { shareId: string }) {
 
       {canEdit ? (
         <button
-          onClick={() => setEditorOpen({ txn: null })}
+          onClick={() => router.push(`/shared/${shareId}/transaction/add`)}
           aria-label="Add transaction"
           className="shimmer-border press fixed bottom-8 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-on-brand shadow-nav transition-transform hover:scale-105"
         >
@@ -242,34 +246,14 @@ export function SharedView({ shareId }: { shareId: string }) {
         </button>
       ) : null}
 
-      {canEdit && editorOpen ? (
-        <SharedTransactionEditor
-          bookId={access.book_id}
-          initial={editorOpen.txn}
-          onClose={() => setEditorOpen(null)}
-          onSaved={async () => {
-            setEditorOpen(null);
-            toast(editorOpen.txn ? "Transaction updated" : "Transaction added", "success");
-            await load();
-          }}
+      {detailTxn ? (
+        <SharedTransactionDetail
+          txn={detailTxn}
+          methods={methods}
+          contact={contactById.get(detailTxn.contact_id ?? "") ?? null}
+          onClose={() => setDetailTxn(null)}
         />
       ) : null}
-
-      <ConfirmDialog
-        open={pendingDelete !== null}
-        onClose={() => setPendingDelete(null)}
-        title="Delete this transaction?"
-        message="This entry will be removed from the shared book permanently."
-        confirmLabel="Delete"
-        destructive
-        onConfirm={async () => {
-          if (!pendingDelete) return;
-          await deleteTransaction(pendingDelete.id);
-          setPendingDelete(null);
-          toast("Transaction deleted", "info");
-          await load();
-        }}
-      />
     </div>
   );
 }
@@ -298,15 +282,13 @@ function SharedTransactionRow({
   level,
   methods,
   contact,
-  onEdit,
-  onDelete,
+  onTap,
 }: {
   txn: TransactionV4;
   level: "view" | "details" | "edit";
   methods: PaymentMethod[];
   contact: Contact | null;
-  onEdit?: (txn: TransactionV4) => void;
-  onDelete?: (txn: Transaction) => void;
+  onTap?: (txn: TransactionV4) => void;
 }) {
   const type = txn.type as "in" | "out" | "transfer";
   const isTransfer = type === "transfer";
@@ -332,7 +314,20 @@ function SharedTransactionRow({
   }
 
   return (
-    <div className="row-sweep relative flex items-center gap-3 py-3.5 pl-3.5 pr-4" style={{ boxShadow: `inset 3px 0 0 ${accentChart}` }}>
+    <div
+      role={onTap ? "button" : undefined}
+      tabIndex={onTap ? 0 : undefined}
+      onClick={onTap ? () => onTap(txn) : undefined}
+      onKeyDown={
+        onTap
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") onTap(txn);
+            }
+          : undefined
+      }
+      className={`row-sweep relative flex items-center gap-3 py-3.5 pl-3.5 pr-4 ${onTap ? "cursor-pointer" : ""}`}
+      style={{ boxShadow: `inset 3px 0 0 ${accentChart}` }}
+    >
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: accentSoft }}>
         {isTransfer ? (
           <ArrowLeftRight size={18} style={{ color: "var(--sky)" }} />
@@ -344,7 +339,17 @@ function SharedTransactionRow({
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink">{isTransfer ? "Transfer" : txn.category}</p>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-semibold text-ink">{isTransfer ? "Transfer" : txn.category}</span>
+          {txn.is_recurring ? (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-brand-deep">
+              <Repeat className="h-2.5 w-2.5" /> {txn.recurrence_interval}
+            </span>
+          ) : null}
+          {!redacted && txn.receipt_url ? (
+            <Camera className="h-3.5 w-3.5 shrink-0 text-ink3" aria-label="Receipt attached" />
+          ) : null}
+        </div>
         <p className="mt-0.5 truncate text-xs text-ink3">{details.join(" · ")}</p>
       </div>
 
@@ -352,96 +357,71 @@ function SharedTransactionRow({
         {isTransfer ? "" : isIn ? "+" : "−"}
         {formatCurrency(Number(txn.amount))}
       </p>
-
-      {onEdit && !isTransfer ? (
-        <button
-          onClick={() => onEdit(txn)}
-          aria-label="Edit transaction"
-          className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-card-hi hover:text-ink"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-      ) : null}
-      {onDelete ? (
-        <button
-          onClick={() => onDelete(txn)}
-          aria-label="Delete transaction"
-          className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-rose-soft hover:text-rose"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      ) : null}
     </div>
   );
 }
 
-/* ————— Compact add/edit form for editors ————— */
-/* Editors record plain in/out entries (no transfers, splits, receipts or
- * recurrence — those lean on the owner's private data). Rows are written
- * with the editor's own user id so RLS accepts them. */
+/* ————— Full detail overlay (Details access) ————— */
 
-function SharedTransactionEditor({
-  bookId,
-  initial,
+function SharedTransactionDetail({
+  txn,
+  methods,
+  contact,
   onClose,
-  onSaved,
 }: {
-  bookId: string;
-  initial: TransactionV4 | null;
+  txn: TransactionV4;
+  methods: PaymentMethod[];
+  contact: Contact | null;
   onClose: () => void;
-  onSaved: () => Promise<void>;
 }) {
-  const { user } = useAuth();
-  const [type, setType] = useState<"in" | "out">(initial?.type === "in" ? "in" : "out");
-  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
-  const [category, setCategory] = useState(initial?.category ?? (CATEGORIES[0] as string));
-  const [note, setNote] = useState(initial?.note ?? "");
-  const [date, setDate] = useState(initial?.date ?? todayISO());
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const type = txn.type as "in" | "out" | "transfer";
+  const isTransfer = type === "transfer";
+  const isIn = type === "in";
+  const accent = isTransfer ? "var(--sky)" : isIn ? "var(--jade)" : "var(--rose)";
+  const accentSoft = isTransfer ? "var(--sky-soft)" : isIn ? "var(--jade-soft)" : "var(--rose-soft)";
+
+  const [splits, setSplits] = useState<Split[]>([]);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
   useBodyScrollLock(true);
 
-  const submit = async (e: FormEvent): Promise<void> => {
-    e.preventDefault();
-    const parsed = Number(amount.replace(/,/g, "")) || 0;
-    if (parsed <= 0) {
-      setError("Enter an amount greater than zero");
-      return;
+  useEffect(() => {
+    getSplitsForTransaction(txn.id)
+      .then(setSplits)
+      .catch(() => setSplits([]));
+    if (txn.receipt_url) {
+      getReceiptSignedUrl(txn.receipt_url)
+        .then(setReceiptUrl)
+        .catch(() => setReceiptUrl(null));
     }
-    if (!user) return;
-    setBusy(true);
-    try {
-      if (initial) {
-        await updateTransaction(initial.id, { type, amount: parsed, category, note: note.trim() || null, date });
-      } else {
-        await createTransaction(user.id, {
-          book_id: bookId,
-          type,
-          amount: parsed,
-          category,
-          payment_method_id: null,
-          note: note.trim() || null,
-          date,
-          is_recurring: false,
-          recurrence_interval: null,
-          next_recurrence_date: null,
-        });
-      }
-      await onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save");
-    } finally {
-      setBusy(false);
-    }
+  }, [txn.id, txn.receipt_url]);
+
+  const methodFor = (id: string | null | undefined): PaymentMethod | null =>
+    id ? (methods.find((m) => m.id === id) ?? null) : null;
+
+  const methodDetail = (m: PaymentMethod | null, fallbackId: string | null | undefined): string => {
+    if (!m) return fallbackId ? "Deleted method" : "Cash / Not specified";
+    const kind = m.payment_type === "upi" ? `UPI · ${m.upi_app_name ?? "UPI"}` : PAYMENT_TYPE_LABEL[m.payment_type];
+    return `${m.bank_name} · ${kind} · ····${m.last_four_digits}`;
   };
 
   return (
     <div style={OVERLAY_STYLE} onClick={onClose}>
       <div role="dialog" aria-modal="true" style={PANEL_STYLE} onClick={(e) => e.stopPropagation()}>
         <div className="mb-5 flex items-start justify-between gap-4">
-          <h2 className="font-display text-xl tracking-tight text-ink">
-            {initial ? "Edit transaction" : "Add transaction"}
-          </h2>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em]"
+            style={{ background: accentSoft, color: accent }}
+          >
+            {isTransfer ? (
+              <ArrowLeftRight className="h-3 w-3" />
+            ) : isIn ? (
+              <ArrowDownLeft className="h-3 w-3" />
+            ) : (
+              <ArrowUpRight className="h-3 w-3" />
+            )}
+            {isTransfer ? "Transfer" : isIn ? "Cash In" : "Cash Out"}
+          </span>
           <button
             type="button"
             onClick={onClose}
@@ -452,90 +432,142 @@ function SharedTransactionEditor({
           </button>
         </div>
 
-        <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 rounded-2xl border border-line bg-sunken p-1">
-            {(
-              [
-                { key: "in" as const, label: "Cash In" },
-                { key: "out" as const, label: "Cash Out" },
-              ]
-            ).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setType(t.key)}
-                className={cn(
-                  "press rounded-xl py-2.5 text-[14px] font-bold tracking-tight transition-colors",
-                  type === t.key ? "text-white" : "text-ink3 hover:text-ink"
-                )}
-                style={type === t.key ? { background: t.key === "in" ? "var(--jade-chart)" : "var(--rose-chart)" } : undefined}
-              >
-                {t.label}
-              </button>
-            ))}
+        {/* Amount */}
+        <p className="amount text-center font-display text-4xl font-semibold tracking-tight" style={{ color: accent }}>
+          {isTransfer ? "" : isIn ? "+" : "−"}
+          {formatCurrency(Number(txn.amount))}
+        </p>
+        <p className="mt-1.5 flex items-center justify-center gap-1.5 text-center text-sm text-ink3">
+          <CalendarDays className="h-3.5 w-3.5" />
+          {formatDate(txn.date, "EEEE, d MMMM yyyy")}
+        </p>
+
+        <div className="mt-5 flex flex-col gap-2.5">
+          {/* Category + recurring */}
+          <div className="flex flex-wrap items-center gap-2">
+            {!isTransfer ? (
+              <span className="rounded-full border border-transparent bg-brand px-3.5 py-1.5 text-[13px] font-semibold text-on-brand">
+                {txn.category}
+              </span>
+            ) : null}
+            {txn.is_recurring ? (
+              <span className="flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-brand-deep">
+                <Repeat className="h-3 w-3" /> Repeats {txn.recurrence_interval}
+              </span>
+            ) : null}
           </div>
 
-          <FieldWrap label="Amount" error={error}>
-            <div className="flex items-baseline gap-2 rounded-2xl border border-line bg-card px-5 py-3.5 focus-within:border-brand">
-              <span className="font-display text-2xl" style={{ color: type === "in" ? "var(--jade)" : "var(--rose)" }}>
-                ₹
-              </span>
-              <input
-                inputMode="decimal"
-                placeholder="0"
-                value={amount}
-                autoFocus
-                onChange={(e) => {
-                  setAmount(e.target.value.replace(/[^\d.,]/g, ""));
-                  setError(null);
-                }}
-                className="amount w-full bg-transparent text-2xl font-semibold tracking-tight text-ink outline-none placeholder:text-ink3"
-                aria-label="Amount in rupees"
+          {/* Payment method — full details at this access level */}
+          {isTransfer ? (
+            <>
+              <DetailRow
+                icon={<Banknote className="h-4 w-4 text-brand-deep" />}
+                label="From account"
+                value={methodDetail(methodFor(txn.payment_method_id), txn.payment_method_id)}
               />
-            </div>
-          </FieldWrap>
-
-          <FieldWrap label="Category">
-            <div className="hide-scrollbar flex gap-2 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
-              {CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCategory(c)}
-                  className={cn(
-                    "press shrink-0 rounded-full border px-4 py-2 text-[13px] font-semibold transition-all",
-                    category === c
-                      ? "border-transparent bg-brand text-on-brand"
-                      : "border-line bg-card text-ink2 hover:border-line-strong"
-                  )}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </FieldWrap>
-
-          <Textarea
-            label="Note · optional"
-            placeholder="e.g. Groceries from DMart"
-            value={note}
-            maxLength={280}
-            onChange={(e) => setNote(e.target.value)}
-          />
-
-          <FieldWrap label="Date">
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-xl border border-line bg-card px-4 py-3 text-[15px] text-ink focus:border-brand focus:outline-none"
+              <DetailRow
+                icon={<Banknote className="h-4 w-4 text-brand-deep" />}
+                label="To account"
+                value={methodDetail(methodFor(txn.transfer_to_payment_method_id), txn.transfer_to_payment_method_id)}
+              />
+            </>
+          ) : (
+            <DetailRow
+              icon={<Banknote className="h-4 w-4 text-brand-deep" />}
+              label="Paid via"
+              value={methodDetail(methodFor(txn.payment_method_id), txn.payment_method_id)}
             />
-          </FieldWrap>
+          )}
 
-          <Button type="submit" size="lg" loading={busy}>
-            {initial ? "Save changes" : "Add transaction"}
-          </Button>
-        </form>
+          {contact ? (
+            <DetailRow
+              icon={<BookUser className="h-4 w-4 text-brand-deep" />}
+              label={isIn ? "Received from" : "Paid to"}
+              value={contact.name}
+            />
+          ) : null}
+
+          {txn.note ? (
+            <DetailRow icon={<StickyNote className="h-4 w-4 text-brand-deep" />} label="Note" value={txn.note} />
+          ) : null}
+
+          {/* Splits */}
+          {splits.length > 0 ? (
+            <div className="rounded-2xl border border-line bg-card-hi p-3.5">
+              <p className="label-caps mb-2.5 flex items-center gap-1.5">
+                <Users className="h-3 w-3" /> Split between {splits.length}
+              </p>
+              <div className="flex flex-col gap-2">
+                {splits.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[10px] font-bold text-brand-deep">
+                      {s.person_name.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{s.person_name}</span>
+                    <span className="amount text-sm text-ink2">{formatCurrency(Number(s.amount))}</span>
+                    <span
+                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]"
+                      style={
+                        s.paid_back
+                          ? { background: "var(--jade-soft)", color: "var(--jade)" }
+                          : { background: "var(--sunken)", color: "var(--ink3)" }
+                      }
+                    >
+                      {s.paid_back ? "Paid back" : "Owes"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Receipt */}
+          {txn.receipt_url ? (
+            receiptUrl ? (
+              <button
+                type="button"
+                onClick={() => setReceiptOpen(true)}
+                className="press w-fit overflow-hidden rounded-xl border border-line"
+                aria-label="View receipt"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={receiptUrl} alt="Receipt" className="h-24 w-24 object-cover" />
+              </button>
+            ) : (
+              <DetailRow
+                icon={<Camera className="h-4 w-4 text-brand-deep" />}
+                label="Receipt"
+                value="Attached — loading…"
+              />
+            )
+          ) : null}
+        </div>
+
+        {/* Full-screen receipt viewer */}
+        {receiptOpen && receiptUrl ? (
+          <div
+            style={{ ...OVERLAY_STYLE, backgroundColor: "rgba(0,0,0,0.9)" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setReceiptOpen(false);
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={receiptUrl} alt="Receipt full view" className="max-h-full max-w-full rounded-2xl object-contain" />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-line bg-card-hi px-3.5 py-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="label-caps">{label}</p>
+        <p className="mt-0.5 break-words text-sm font-semibold text-ink">{value}</p>
       </div>
     </div>
   );

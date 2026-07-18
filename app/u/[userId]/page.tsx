@@ -4,20 +4,23 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { platformMeta } from "@/components/links/platforms";
 import { getPublicProfile } from "@/lib/features/links";
+import { formatBalance, getPublicAccountBalances } from "@/lib/features/accounts";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { SplashScreen } from "@/components/ui/LoadingSpinner";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SetupNotice } from "@/components/layout/AppShell";
 import { getInitials } from "@/lib/helpers";
-import type { PublicProfile } from "@/types/features";
+import type { PublicAccountBalance, PublicProfile } from "@/types/features";
 
 /** Public Linktree-style profile — no login required. */
 export default function PublicProfilePage() {
   const params = useParams<{ userId: string }>();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
+  const [balances, setBalances] = useState<PublicAccountBalance[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "gone">("loading");
 
   useEffect(() => {
@@ -32,6 +35,9 @@ export default function PublicProfilePage() {
         }
       })
       .catch(() => setState("gone"));
+    getPublicAccountBalances(params.userId)
+      .then(setBalances)
+      .catch(() => setBalances([]));
   }, [params.userId]);
 
   if (!isSupabaseConfigured()) return <SetupNotice />;
@@ -50,6 +56,47 @@ export default function PublicProfilePage() {
   }
 
   const publicLinks = profile.links;
+
+  /* Frosted, glowing balance cards — the one number a visitor came to see. */
+  const balancesSection =
+    balances.length > 0 ? (
+      <div className="mt-8">
+        <p className="label-caps text-center">Balances</p>
+        <div className="mt-4 flex flex-col gap-3">
+          {balances.map((b, i) => (
+            <div
+              key={b.id}
+              className="glass-surface relative overflow-hidden rounded-3xl p-5 animate-fade-up"
+              style={{
+                animationDelay: `${120 + i * 90}ms`,
+                boxShadow: `var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.06)`,
+              }}
+            >
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full opacity-[0.22] blur-3xl"
+                style={{ background: `radial-gradient(circle, ${b.color}, transparent 68%)` }}
+              />
+              <div className="relative flex items-center justify-between gap-3">
+                <p className="min-w-0 truncate text-sm font-bold text-ink">{b.name}</p>
+                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-jade-soft px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-jade">
+                  <span className="h-1.5 w-1.5 rounded-full bg-jade animate-pulse-dot" />
+                  Live
+                </span>
+              </div>
+              <p className="amount relative mt-2 truncate font-display text-[34px] font-semibold leading-tight tracking-tight text-ink">
+                {b.balance !== null ? formatBalance(Number(b.balance)) : "—"}
+              </p>
+              {b.updatedAt ? (
+                <p className="relative mt-1 text-xs text-ink3">
+                  Updated {formatDistanceToNow(new Date(b.updatedAt), { addSuffix: true })}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null;
 
   return (
     <main className="relative z-10 min-h-screen overflow-hidden">
@@ -90,8 +137,12 @@ export default function PublicProfilePage() {
           <h1 className="mt-5 font-display text-[34px] leading-tight tracking-tight text-ink">
             {profile.display_name ?? "SpendBook user"}
           </h1>
-          <p className="label-caps mt-6">Links</p>
         </div>
+
+        {/* Balances lead when there are no links to show */}
+        {publicLinks.length === 0 ? balancesSection : null}
+
+        <p className="label-caps mt-6 text-center">Links</p>
 
         {/* Link pills */}
         <div className="mt-4 flex flex-col gap-3">
@@ -136,6 +187,8 @@ export default function PublicProfilePage() {
             })
           )}
         </div>
+
+        {publicLinks.length > 0 ? balancesSection : null}
 
         {/* Footer */}
         <div className="mt-auto pt-12">
