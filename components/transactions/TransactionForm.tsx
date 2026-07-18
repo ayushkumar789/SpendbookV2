@@ -233,22 +233,32 @@ export function TransactionForm({
 
       {/* Category chips */}
       <FieldWrap label="Category">
-        <div className="hide-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setCategory(c)}
-              className={cn(
-                "press shrink-0 rounded-full border px-4 py-2 text-[13px] font-semibold transition-all duration-200",
-                category === c
-                  ? "border-transparent bg-brand text-on-brand shadow-[0_0_16px_-6px_var(--brand-glow)]"
-                  : "border-line bg-card text-ink2 hover:border-line-strong hover:bg-card-hi"
-              )}
-            >
-              {c}
-            </button>
-          ))}
+        <div className="relative -mx-1">
+          <div
+            className="hide-scrollbar flex gap-2 overflow-x-auto px-1 pb-1 pr-10"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            {CATEGORIES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCategory(c)}
+                className={cn(
+                  "press shrink-0 rounded-full border px-4 py-2 text-[13px] font-semibold transition-all duration-200",
+                  category === c
+                    ? "border-transparent bg-brand text-on-brand shadow-[0_0_16px_-6px_var(--brand-glow)]"
+                    : "border-line bg-card text-ink2 hover:border-line-strong hover:bg-card-hi"
+                )}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 w-10"
+            style={{ background: "linear-gradient(to right, transparent, var(--bg))" }}
+          />
         </div>
       </FieldWrap>
 
