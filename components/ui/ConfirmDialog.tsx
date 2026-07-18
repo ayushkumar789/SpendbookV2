@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
-import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 
 interface ConfirmDialogProps {
@@ -36,8 +35,39 @@ export function ConfirmDialog({
     }
   };
 
+  if (!open) return null;
+
   return (
-    <Modal open={open} onClose={busy ? () => undefined : onClose}>
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.8)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+      }}
+      onClick={busy ? undefined : onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          backgroundColor: "var(--card)",
+          borderRadius: "16px",
+          width: "100%",
+          maxWidth: "500px",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          padding: "20px",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
       <div className="flex flex-col items-center gap-4 text-center">
         <span
           className="flex h-14 w-14 items-center justify-center rounded-2xl"
@@ -58,6 +88,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </Modal>
+      </div>
+    </div>
   );
 }

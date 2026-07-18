@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Lock, Plus, ShieldCheck } from "lucide-react";
+import { Lock, Plus, ShieldCheck, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Header } from "@/components/layout/Header";
 import { DocumentCard } from "@/components/wallet/DocumentCard";
@@ -9,7 +9,6 @@ import { DocumentViewer } from "@/components/wallet/DocumentViewer";
 import { AddDocumentWizard } from "@/components/wallet/AddDocumentWizard";
 import { AddMethodCard } from "@/components/payment-methods/PaymentMethodCard";
 import { Button } from "@/components/ui/Button";
-import { AdaptiveDialog } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { getWalletDocuments } from "@/lib/features/wallet";
@@ -106,17 +105,58 @@ function WalletContent() {
         <Plus className="h-6 w-6" strokeWidth={2.5} />
       </button>
 
-      <AdaptiveDialog open={addOpen} onClose={() => setAddOpen(false)} title="Add to your vault" wide>
-        {addOpen ? (
-          <AddDocumentWizard
-            onCancel={() => setAddOpen(false)}
-            onDone={() => {
-              setAddOpen(false);
-              void refresh();
+      {addOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.8)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+          onClick={() => setAddOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              backgroundColor: "var(--card)",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "672px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "20px",
             }}
-          />
-        ) : null}
-      </AdaptiveDialog>
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <h2 className="font-display text-xl tracking-tight text-ink">Add to your vault</h2>
+              <button
+                type="button"
+                onClick={() => setAddOpen(false)}
+                aria-label="Close"
+                className="press -mr-1 -mt-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <AddDocumentWizard
+              onCancel={() => setAddOpen(false)}
+              onDone={() => {
+                setAddOpen(false);
+                void refresh();
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {viewing ? (
         <DocumentViewer doc={viewing} onClose={() => setViewing(null)} onDeleted={() => void refresh()} />

@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Download, FileSpreadsheet, FileText, HandCoins, Pencil, Plus, Share2 } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, HandCoins, Pencil, Plus, Share2, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { AppShell } from "@/components/layout/AppShell";
 import { Header } from "@/components/layout/Header";
@@ -15,7 +15,6 @@ import { TransactionRow } from "@/components/transactions/TransactionRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { AdaptiveDialog } from "@/components/ui/Modal";
 import { RowSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { ShareModal } from "@/components/shared/ShareModal";
 import { PullIndicator, usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -327,30 +326,73 @@ function BookDetailContent() {
 
       {book ? <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} book={book} onBookChange={setBook} /> : null}
 
-      <AdaptiveDialog open={exportOpen} onClose={() => setExportOpen(false)} title="Export this book">
-        <p className="mb-4 text-sm leading-relaxed text-ink2">
-          Exports the <span className="font-semibold text-ink">{filtered.length}</span> transactions currently in
-          view ({rangeLabel}) with summary totals.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => handleExport("pdf")}
-            className="press flex flex-col items-center gap-2.5 rounded-2xl border border-line bg-card p-5 transition-all hover:border-brand hover:bg-brand-soft"
+      {exportOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.8)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+          onClick={() => setExportOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              backgroundColor: "var(--card)",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "500px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "20px",
+            }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <FileText className="h-7 w-7 text-rose" />
-            <span className="text-sm font-bold text-ink">PDF</span>
-            <span className="text-xs text-ink3">Clean printable report</span>
-          </button>
-          <button
-            onClick={() => handleExport("excel")}
-            className="press flex flex-col items-center gap-2.5 rounded-2xl border border-line bg-card p-5 transition-all hover:border-brand hover:bg-brand-soft"
-          >
-            <FileSpreadsheet className="h-7 w-7 text-jade" />
-            <span className="text-sm font-bold text-ink">Excel</span>
-            <span className="text-xs text-ink3">Full data as .xlsx</span>
-          </button>
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <h2 className="font-display text-xl tracking-tight text-ink">Export this book</h2>
+              <button
+                type="button"
+                onClick={() => setExportOpen(false)}
+                aria-label="Close"
+                className="press -mr-1 -mt-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mb-4 text-sm leading-relaxed text-ink2">
+              Exports the <span className="font-semibold text-ink">{filtered.length}</span> transactions currently in
+              view ({rangeLabel}) with summary totals.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleExport("pdf")}
+                className="press flex flex-col items-center gap-2.5 rounded-2xl border border-line bg-card p-5 transition-all hover:border-brand hover:bg-brand-soft"
+              >
+                <FileText className="h-7 w-7 text-rose" />
+                <span className="text-sm font-bold text-ink">PDF</span>
+                <span className="text-xs text-ink3">Clean printable report</span>
+              </button>
+              <button
+                onClick={() => handleExport("excel")}
+                className="press flex flex-col items-center gap-2.5 rounded-2xl border border-line bg-card p-5 transition-all hover:border-brand hover:bg-brand-soft"
+              >
+                <FileSpreadsheet className="h-7 w-7 text-jade" />
+                <span className="text-sm font-bold text-ink">Excel</span>
+                <span className="text-xs text-ink3">Full data as .xlsx</span>
+              </button>
+            </div>
+          </div>
         </div>
-      </AdaptiveDialog>
+      )}
 
       <ConfirmDialog
         open={pendingDelete !== null}

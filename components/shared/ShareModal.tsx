@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Link2, RefreshCcw, Share2, StopCircle } from "lucide-react";
+import { Copy, Link2, RefreshCcw, Share2, StopCircle, X } from "lucide-react";
 import { Share } from "@capacitor/share";
 import { Capacitor } from "@capacitor/core";
 import { enableSharing, resetShareLink, stopSharing } from "@/lib/database";
-import { AdaptiveDialog } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/hooks/useToast";
@@ -85,7 +84,48 @@ export function ShareModal({ open, onClose, book, onBookChange }: ShareModalProp
 
   return (
     <>
-      <AdaptiveDialog open={open} onClose={onClose} title="Share this book">
+      {open && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.8)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+          onClick={onClose}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              backgroundColor: "var(--card)",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "500px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "20px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <h2 className="font-display text-xl tracking-tight text-ink">Share this book</h2>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="press -mr-1 -mt-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+              >
+                <X size={18} />
+              </button>
+            </div>
         <div className="flex flex-col gap-4">
           <p className="text-sm leading-relaxed text-ink2">
             Anyone with this code can watch <span className="font-semibold text-ink">{book.name}</span> live —
@@ -137,7 +177,9 @@ export function ShareModal({ open, onClose, book, onBookChange }: ShareModalProp
             </div>
           ) : null}
         </div>
-      </AdaptiveDialog>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmStop}

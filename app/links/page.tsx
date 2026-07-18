@@ -10,12 +10,12 @@ import {
   Plus,
   Share2,
   Trash2,
+  X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { AdaptiveDialog } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { RowSkeleton } from "@/components/ui/Skeleton";
@@ -346,8 +346,50 @@ function AddLinkDialog({
     }
   };
 
+  if (!open) return null;
+
   return (
-    <AdaptiveDialog open={open} onClose={onClose} title="Add a link">
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.8)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          backgroundColor: "var(--card)",
+          borderRadius: "16px",
+          width: "100%",
+          maxWidth: "500px",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          padding: "20px",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <h2 className="font-display text-xl tracking-tight text-ink">Add a link</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="press -mr-1 -mt-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+        >
+          <X size={18} />
+        </button>
+      </div>
       <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-5">
         <div>
           <p className="label-caps mb-2">Platform</p>
@@ -422,6 +464,7 @@ function AddLinkDialog({
           Save link
         </Button>
       </form>
-    </AdaptiveDialog>
+      </div>
+    </div>
   );
 }

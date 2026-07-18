@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Check, Plus, Target } from "lucide-react";
+import { Check, Plus, Target, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Header } from "@/components/layout/Header";
 import { GoalCard } from "@/components/goals/GoalCard";
 import { Button } from "@/components/ui/Button";
 import { FieldWrap, Input } from "@/components/ui/Input";
-import { AdaptiveDialog } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BookCardSkeleton } from "@/components/ui/Skeleton";
@@ -212,8 +211,50 @@ function CreateGoalDialog({
     }
   };
 
+  if (!open) return null;
+
   return (
-    <AdaptiveDialog open={open} onClose={onClose} title="New savings goal">
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.8)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          backgroundColor: "var(--card)",
+          borderRadius: "16px",
+          width: "100%",
+          maxWidth: "500px",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          padding: "20px",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <h2 className="font-display text-xl tracking-tight text-ink">New savings goal</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="press -mr-1 -mt-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+        >
+          <X size={18} />
+        </button>
+      </div>
       <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-5">
         <Input
           label="Goal name"
@@ -292,7 +333,8 @@ function CreateGoalDialog({
           Create goal
         </Button>
       </form>
-    </AdaptiveDialog>
+      </div>
+    </div>
   );
 }
 
@@ -334,7 +376,49 @@ function FundsDialog({
   };
 
   return (
-    <AdaptiveDialog open onClose={onClose} title={mode === "add" ? `Add funds · ${goal.name}` : `Withdraw · ${goal.name}`}>
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.8)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          backgroundColor: "var(--card)",
+          borderRadius: "16px",
+          width: "100%",
+          maxWidth: "500px",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          padding: "20px",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <h2 className="font-display text-xl tracking-tight text-ink">
+          {mode === "add" ? `Add funds · ${goal.name}` : `Withdraw · ${goal.name}`}
+        </h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="press -mr-1 -mt-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+        >
+          <X size={18} />
+        </button>
+      </div>
       <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-5">
         <p className="text-sm text-ink2">
           Saved so far: <span className="amount font-semibold text-ink">{formatCurrency(saved)}</span> of{" "}
@@ -362,6 +446,7 @@ function FundsDialog({
           </Button>
         </div>
       </form>
-    </AdaptiveDialog>
+      </div>
+    </div>
   );
 }

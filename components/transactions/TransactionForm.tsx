@@ -22,7 +22,6 @@ import { getReceiptSignedUrl } from "@/lib/features/receipts";
 import { getContact } from "@/lib/features/contacts";
 import { Button } from "@/components/ui/Button";
 import { FieldWrap, Textarea } from "@/components/ui/Input";
-import { AdaptiveDialog } from "@/components/ui/Modal";
 import { InitialBadge } from "@/components/ui/Badge";
 import { ContactAvatar, ContactPicker } from "@/components/contacts/ContactPicker";
 import type { PaymentMethod, RecurrenceInterval } from "@/types";
@@ -653,8 +652,49 @@ export function TransactionForm({
       ) : null}
 
       {/* Method picker */}
-      <AdaptiveDialog open={pickerOpen} onClose={() => setPickerOpen(false)} title="Paid via">
-        <div className="flex flex-col gap-1.5">
+      {pickerOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.8)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+          onClick={() => setPickerOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              backgroundColor: "var(--card)",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "500px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "20px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <h2 className="font-display text-xl tracking-tight text-ink">Paid via</h2>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                aria-label="Close"
+                className="press -mr-1 -mt-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-1.5">
           <MethodOption
             selected={methodId === null}
             onClick={() => {
@@ -681,21 +721,62 @@ export function TransactionForm({
               />
             );
           })}
-          {methods.length === 0 ? (
-            <p className="px-2 py-4 text-center text-sm text-ink3">
-              No saved methods yet — add one from the Payment Methods tab.
-            </p>
-          ) : null}
+              {methods.length === 0 ? (
+                <p className="px-2 py-4 text-center text-sm text-ink3">
+                  No saved methods yet — add one from the Payment Methods tab.
+                </p>
+              ) : null}
+            </div>
+          </div>
         </div>
-      </AdaptiveDialog>
+      )}
 
       {/* Transfer From/To account picker */}
-      <AdaptiveDialog
-        open={transferPicker !== null}
-        onClose={() => setTransferPicker(null)}
-        title={transferPicker === "from" ? "From account" : "To account"}
-      >
-        <div className="flex flex-col gap-1.5">
+      {transferPicker !== null && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.8)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+          onClick={() => setTransferPicker(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              backgroundColor: "var(--card)",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "500px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "20px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <h2 className="font-display text-xl tracking-tight text-ink">
+                {transferPicker === "from" ? "From account" : "To account"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setTransferPicker(null)}
+                aria-label="Close"
+                className="press -mr-1 -mt-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-1.5">
           {methods.map((m) => {
             const bank = BANKS.find((b) => b.key === m.bank_key);
             const selected = (transferPicker === "from" ? transferFrom : transferTo) === m.id;
@@ -715,8 +796,10 @@ export function TransactionForm({
               />
             );
           })}
+            </div>
+          </div>
         </div>
-      </AdaptiveDialog>
+      )}
 
       {/* Person tag picker — titled by transaction direction */}
       <ContactPicker

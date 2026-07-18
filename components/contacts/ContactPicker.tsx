@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search, UserX } from "lucide-react";
-import { AdaptiveDialog } from "@/components/ui/Modal";
+import { Plus, Search, UserX, X } from "lucide-react";
 import { AddContactForm } from "@/components/contacts/AddContactForm";
 import { useAuth } from "@/hooks/useAuth";
 import { cn, getInitials } from "@/lib/helpers";
@@ -81,8 +80,50 @@ export function ContactPicker({
   const resolvedTitle =
     title ?? (txnType === "in" ? "Received from" : txnType === "out" ? "Paid to" : "Tag a person");
 
+  if (!open) return null;
+
   return (
-    <AdaptiveDialog open={open} onClose={onClose} title={adding ? "Add new contact" : resolvedTitle}>
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.8)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          backgroundColor: "var(--card)",
+          borderRadius: "16px",
+          width: "100%",
+          maxWidth: "500px",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          padding: "20px",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <h2 className="font-display text-xl tracking-tight text-ink">{adding ? "Add new contact" : resolvedTitle}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="press -mr-1 -mt-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+          >
+            <X size={18} />
+          </button>
+        </div>
       {adding ? (
         <AddContactForm
           existingCount={contacts.length}
@@ -155,6 +196,7 @@ export function ContactPicker({
           </button>
         </div>
       )}
-    </AdaptiveDialog>
+      </div>
+    </div>
   );
 }
