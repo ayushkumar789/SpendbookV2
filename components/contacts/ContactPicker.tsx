@@ -35,6 +35,8 @@ interface ContactPickerProps {
   selectedId?: string | null;
   allowNone?: boolean;
   title?: string;
+  /** current transaction type — drives the sheet title ("Received from" / "Paid to") */
+  txnType?: "in" | "out";
 }
 
 export function ContactPicker({
@@ -43,7 +45,8 @@ export function ContactPicker({
   onSelect,
   selectedId = null,
   allowNone = true,
-  title = "Tag a person",
+  title,
+  txnType,
 }: ContactPickerProps) {
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -75,8 +78,11 @@ export function ContactPicker({
     onClose();
   };
 
+  const resolvedTitle =
+    title ?? (txnType === "in" ? "Received from" : txnType === "out" ? "Paid to" : "Tag a person");
+
   return (
-    <AdaptiveDialog open={open} onClose={onClose} title={adding ? "Add new contact" : title}>
+    <AdaptiveDialog open={open} onClose={onClose} title={adding ? "Add new contact" : resolvedTitle}>
       {adding ? (
         <AddContactForm
           existingCount={contacts.length}

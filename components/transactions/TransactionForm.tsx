@@ -386,9 +386,9 @@ export function TransactionForm({
       </FieldWrap>
       ) : null}
 
-      {/* Person tag — not for transfers between your own accounts */}
+      {/* Person tag — hidden for transfers between your own accounts */}
       {!isTransfer ? (
-        <FieldWrap label="Person · optional">
+        <FieldWrap label={type === "in" ? "Received from · optional" : "Paid to · optional"}>
           <button
             type="button"
             onClick={() => setContactPickerOpen(true)}
@@ -402,7 +402,11 @@ export function TransactionForm({
               </span>
             )}
             <span className={cn("flex-1 truncate text-sm font-semibold", contact ? "text-ink" : "text-ink3")}>
-              {contact ? contact.name : "Tag a person (optional)"}
+              {contact
+                ? contact.name
+                : type === "in"
+                  ? "Who paid you? (optional)"
+                  : "Who did you pay? (optional)"}
             </span>
             <ChevronRight className="h-4 w-4 text-ink3" />
           </button>
@@ -714,12 +718,13 @@ export function TransactionForm({
         </div>
       </AdaptiveDialog>
 
-      {/* Person tag picker */}
+      {/* Person tag picker — titled by transaction direction */}
       <ContactPicker
         open={contactPickerOpen}
         onClose={() => setContactPickerOpen(false)}
         onSelect={setContact}
         selectedId={contact?.id ?? null}
+        txnType={type === "in" ? "in" : "out"}
       />
 
       {/* Splits: pick a contact to pre-fill the name */}

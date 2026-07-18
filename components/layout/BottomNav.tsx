@@ -22,7 +22,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className="glass-surface fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 mx-auto flex w-[min(26rem,calc(100%-1.5rem))] items-center rounded-full p-1 shadow-nav md:hidden"
+      className="glass-surface fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[45] mx-auto flex w-[min(26rem,calc(100%-1.5rem))] items-center rounded-full p-1 shadow-nav md:hidden"
       aria-label="Primary"
     >
       {NAV.map(({ href, label, icon: Icon }, i) => {
