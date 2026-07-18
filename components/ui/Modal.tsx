@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/helpers";
-import { BottomSheet } from "@/components/ui/BottomSheet";
+import BottomSheet from "@/components/ui/BottomSheet";
 
 interface ModalProps {
   open: boolean;
@@ -76,7 +76,7 @@ export function AdaptiveDialog(props: ModalProps) {
   const isDesktop = useIsDesktop();
   if (isDesktop) return <Modal {...props} />;
   return (
-    <BottomSheet open={props.open} onClose={props.onClose} title={props.title}>
+    <BottomSheet isOpen={props.open} onClose={props.onClose} title={props.title}>
       {props.children}
     </BottomSheet>
   );

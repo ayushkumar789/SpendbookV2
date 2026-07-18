@@ -1,46 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect } from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/helpers";
 
-interface BottomSheetProps {
-  open: boolean;
+/**
+ * Dead-simple picker panel: a full-screen overlay with an opacity-only
+ * fade (300ms). No transforms, no keyframes, no drag logic — those are
+ * unreliable in the Capacitor WebView on Android. The panel docks to the
+ * bottom on mobile and centers on desktop.
+ *
+ * Always rendered; `isOpen` just toggles opacity + pointer events, so the
+ * fade works in both directions with a single CSS transition.
+ */
+export default function BottomSheet({
+  isOpen,
+  onClose,
+  title,
+  children,
+}: {
+  isOpen: boolean;
   onClose: () => void;
   title?: string;
-  children: ReactNode;
-}
-
-const SLIDE_MS = 300;
-
-/**
- * Mobile bottom sheet. Stays mounted while animating so the sheet slides
- * up on open and back down on close (translateY 100% ↔ 0). Closes on
- * Escape, backdrop tap, or dragging the handle down.
- */
-export function BottomSheet({ open, onClose, title, children }: BottomSheetProps) {
-  // mounted keeps the DOM alive for the exit animation; visible drives the transform
-  const [mounted, setMounted] = useState(open);
-  const [visible, setVisible] = useState(false);
-  const [dragY, setDragY] = useState(0);
-  const touchStartY = useRef<number | null>(null);
-
+  children: React.ReactNode;
+}) {
   useEffect(() => {
-    if (open) {
-      setMounted(true);
-      // Paint one frame in the off-screen position first so the
-      // slide-up transition actually runs on the next frame.
-      const raf = requestAnimationFrame(() => {
-        requestAnimationFrame(() => setVisible(true));
-      });
-      return () => cancelAnimationFrame(raf);
-    }
-    setVisible(false);
-    const t = window.setTimeout(() => setMounted(false), SLIDE_MS);
-    return () => window.clearTimeout(t);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === "Escape") onClose();
     };
@@ -50,60 +35,37 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
     };
-  }, [open, onClose]);
-
-  if (!mounted) return null;
-
-  const onHandleTouchStart = (e: React.TouchEvent): void => {
-    touchStartY.current = e.touches[0].clientY;
-  };
-  const onHandleTouchMove = (e: React.TouchEvent): void => {
-    if (touchStartY.current === null) return;
-    const dy = e.touches[0].clientY - touchStartY.current;
-    if (dy > 0) setDragY(dy);
-  };
-  const onHandleTouchEnd = (): void => {
-    touchStartY.current = null;
-    if (dragY > 80) onClose();
-    setDragY(0);
-  };
+  }, [isOpen, onClose]);
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className={cn(
-          "fixed inset-0 z-[49] bg-black/60 backdrop-blur-[3px] transition-opacity",
-          visible ? "opacity-100" : "opacity-0"
-        )}
-        style={{ transitionDuration: `${SLIDE_MS}ms` }}
-        onClick={onClose}
-        aria-hidden
-      />
-
-      {/* Sheet */}
+    <div
+      aria-hidden={!isOpen}
+      className={cn(
+        "fixed inset-0 z-50 flex items-end justify-center bg-black/70 transition-opacity duration-300 md:items-center",
+        isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+      )}
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
-        className="glass-surface fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] overflow-y-auto overscroll-contain rounded-t-[28px] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 shadow-pop"
-        style={{
-          transform: visible ? `translateY(${dragY}px)` : "translateY(100%)",
-          // While dragging, track the finger 1:1; otherwise animate the slide
-          transition: dragY > 0 ? "none" : `transform ${SLIDE_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`,
-        }}
+        onClick={(e) => e.stopPropagation()}
+        className="card-surface max-h-[80vh] w-full overflow-y-auto overscroll-contain rounded-t-2xl px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 shadow-pop md:max-w-md md:rounded-2xl"
       >
-        {/* Drag handle zone — touch-none so dragging never fights inner scroll */}
-        <div
-          className="-mx-5 -mt-3 cursor-grab touch-none px-5 pt-3"
-          onTouchStart={onHandleTouchStart}
-          onTouchMove={onHandleTouchMove}
-          onTouchEnd={onHandleTouchEnd}
-        >
-          <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-line-strong" />
-          {title ? <h2 className="mb-5 font-display text-xl tracking-tight text-ink">{title}</h2> : null}
+        {/* Cosmetic handle pill — no drag logic */}
+        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-line-strong md:hidden" />
+        <div className={cn("mb-4 flex items-start justify-between gap-4", !title && "mb-2")}>
+          {title ? <h2 className="font-display text-xl tracking-tight text-ink">{title}</h2> : <span />}
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="press -mr-1 rounded-full p-2 text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+          >
+            <X size={18} />
+          </button>
         </div>
         {children}
       </div>
-    </>
+    </div>
   );
 }

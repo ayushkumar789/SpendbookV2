@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BookUser, Check, Search } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
+import { Contacts } from "@capacitor-community/contacts";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,9 +26,9 @@ function webContactsApi(): WebContactsApi | null {
   return api && typeof api.select === "function" ? api : null;
 }
 
-interface DeviceContact {
+interface PhoneContact {
   name: string;
-  phone: string | null;
+  phone: string;
 }
 
 interface AddContactFormProps {
@@ -45,66 +46,72 @@ export function AddContactForm({ existingCount, onCreated, onCancel }: AddContac
   const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  /* ————— Device contact import ————— */
-  const [view, setView] = useState<"form" | "device">("form");
+  /* ————— Phone contact import ————— */
   const [importing, setImporting] = useState(false);
-  const [deviceContacts, setDeviceContacts] = useState<DeviceContact[]>([]);
-  const [deviceQuery, setDeviceQuery] = useState("");
-  /** blocking notice shown instead of the list (permission / support / empty) */
-  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [phoneContacts, setPhoneContacts] = useState<PhoneContact[]>([]);
+  const [showPhoneList, setShowPhoneList] = useState(false);
+  const [phoneQuery, setPhoneQuery] = useState("");
 
-  const importFromPhone = async (): Promise<void> => {
+  async function importFromPhone(): Promise<void> {
     if (importing) return;
     setImporting(true);
+    setImportError(null);
     try {
-      if (Capacitor.isNativePlatform()) {
-        const { Contacts } = await import("@capacitor-community/contacts");
-        const perm = await Contacts.requestPermissions();
-        if (perm.contacts !== "granted") {
-          setImportNotice("Permission denied. Please allow contacts access in your phone settings.");
-          setDeviceContacts([]);
-          setView("device");
-          return;
-        }
-        const result = await Contacts.getContacts({ projection: { name: true, phones: true } });
-        const mapped: DeviceContact[] = (result.contacts ?? [])
-          .map((c) => ({
-            name: c.name?.display?.trim() ?? "",
-            phone: c.phones?.[0]?.number?.trim() || null,
-          }))
-          .filter((c): c is DeviceContact => c.name.length > 0)
-          .sort((a, b) => a.name.localeCompare(b.name));
-        setDeviceContacts(mapped);
-        setImportNotice(mapped.length === 0 ? "No contacts found on your device" : null);
-        setDeviceQuery("");
-        setView("device");
-      } else {
+      if (!Capacitor.isNativePlatform()) {
+        // Web: use the browser's own picker when available, otherwise explain.
         const api = webContactsApi();
         if (!api) {
-          setImportNotice("Contact import is only available in the app");
-          setDeviceContacts([]);
-          setView("device");
+          setImportError("Contact import is only available in the app");
           return;
         }
-        // The browser shows its own native picker — fill the form directly.
         const results = await api.select(["name", "tel"], { multiple: false });
         const first = results[0];
         if (first?.name?.[0]) setName(first.name[0]);
         if (first?.tel?.[0]) setPhone(first.tel[0]);
         setNameError(null);
+        return;
       }
+
+      const permission = await Contacts.requestPermissions();
+      if (permission.contacts !== "granted") {
+        setImportError("Permission denied. Allow contacts in Settings.");
+        return;
+      }
+      const result = await Contacts.getContacts({
+        projection: {
+          name: true,
+          phones: true,
+        },
+      });
+      const mapped = result.contacts
+        .filter((c) => c.name?.display || c.name?.given)
+        .map((c) => ({
+          name: c.name?.display || [c.name?.given, c.name?.family].filter(Boolean).join(" "),
+          phone: c.phones?.[0]?.number || "",
+        }))
+        .filter((c): c is PhoneContact => Boolean(c.name))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      if (mapped.length === 0) {
+        setImportError("No contacts found on your device.");
+        return;
+      }
+      setPhoneContacts(mapped);
+      setPhoneQuery("");
+      setShowPhoneList(true);
     } catch {
-      /* user dismissed the picker — nothing to do */
+      setImportError("Could not load contacts. Try again.");
     } finally {
       setImporting(false);
     }
-  };
+  }
 
-  const pickDeviceContact = (c: DeviceContact): void => {
+  const pickPhoneContact = (c: PhoneContact): void => {
     setName(c.name);
-    setPhone(c.phone ?? "");
+    setPhone(c.phone);
     setNameError(null);
-    setView("form");
+    setShowPhoneList(false);
   };
 
   const save = async (): Promise<void> => {
@@ -130,59 +137,50 @@ export function AddContactForm({ existingCount, onCreated, onCancel }: AddContac
     }
   };
 
-  if (view === "device") {
-    const filtered = deviceQuery.trim()
-      ? deviceContacts.filter(
+  if (showPhoneList) {
+    const filtered = phoneQuery.trim()
+      ? phoneContacts.filter(
           (c) =>
-            c.name.toLowerCase().includes(deviceQuery.trim().toLowerCase()) ||
-            (c.phone ?? "").includes(deviceQuery.trim())
+            c.name.toLowerCase().includes(phoneQuery.trim().toLowerCase()) ||
+            c.phone.includes(phoneQuery.trim())
         )
-      : deviceContacts;
+      : phoneContacts;
 
     return (
       <div className="flex flex-col gap-3 animate-fade-in">
-        {importNotice ? (
-          <p className="rounded-xl border border-line bg-sunken px-4 py-6 text-center text-sm text-ink2">
-            {importNotice}
-          </p>
-        ) : (
-          <>
-            <div className="flex items-center gap-2.5 rounded-xl border border-line bg-card-hi px-3.5">
-              <Search className="h-4 w-4 shrink-0 text-ink3" />
-              <input
-                value={deviceQuery}
-                onChange={(e) => setDeviceQuery(e.target.value)}
-                placeholder="Search phone contacts…"
-                className="h-11 w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink3"
-                aria-label="Search phone contacts"
-                autoFocus
-              />
-            </div>
-            <div className="flex max-h-[42vh] flex-col gap-1.5 overflow-y-auto overscroll-contain">
-              {filtered.length === 0 ? (
-                <p className="px-2 py-6 text-center text-sm text-ink3">No matches for “{deviceQuery}”.</p>
-              ) : (
-                filtered.map((c, i) => (
-                  <button
-                    key={`${c.name}-${c.phone ?? i}`}
-                    type="button"
-                    onClick={() => pickDeviceContact(c)}
-                    className="press row-sweep flex w-full items-center gap-3 rounded-2xl border border-line bg-card px-3.5 py-3 text-left transition-all duration-200 hover:border-line-strong"
-                  >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sunken text-xs font-bold text-ink2">
-                      {c.name.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-ink">{c.name}</span>
-                      {c.phone ? <span className="block truncate text-xs text-ink3">{c.phone}</span> : null}
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-          </>
-        )}
-        <Button type="button" variant="outline" size="md" className="w-full" onClick={() => setView("form")}>
+        <div className="flex items-center gap-2.5 rounded-xl border border-line bg-card-hi px-3.5">
+          <Search className="h-4 w-4 shrink-0 text-ink3" />
+          <input
+            value={phoneQuery}
+            onChange={(e) => setPhoneQuery(e.target.value)}
+            placeholder="Search phone contacts…"
+            className="h-11 w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink3"
+            aria-label="Search phone contacts"
+          />
+        </div>
+        <div className="flex max-h-[42vh] flex-col gap-1.5 overflow-y-auto overscroll-contain">
+          {filtered.length === 0 ? (
+            <p className="px-2 py-6 text-center text-sm text-ink3">No matches for “{phoneQuery}”.</p>
+          ) : (
+            filtered.map((c, i) => (
+              <button
+                key={`${c.name}-${c.phone || i}`}
+                type="button"
+                onClick={() => pickPhoneContact(c)}
+                className="press row-sweep flex w-full items-center gap-3 rounded-2xl border border-line bg-card px-3.5 py-3 text-left transition-all duration-200 hover:border-line-strong"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sunken text-xs font-bold text-ink2">
+                  {c.name.slice(0, 2).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-ink">{c.name}</span>
+                  {c.phone ? <span className="block truncate text-xs text-ink3">{c.phone}</span> : null}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+        <Button type="button" variant="outline" size="md" className="w-full" onClick={() => setShowPhoneList(false)}>
           Back
         </Button>
       </div>
@@ -191,22 +189,26 @@ export function AddContactForm({ existingCount, onCreated, onCancel }: AddContac
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
-      <Button
-        type="button"
-        variant="soft"
-        size="md"
-        className="w-full"
-        icon={<BookUser className="h-4 w-4" />}
-        loading={importing}
-        onClick={() => void importFromPhone()}
-      >
-        Import from phone contacts
-      </Button>
+      <div className="flex flex-col gap-1.5">
+        <Button
+          type="button"
+          variant="soft"
+          size="md"
+          className="w-full"
+          icon={<BookUser className="h-4 w-4" />}
+          loading={importing}
+          onClick={() => void importFromPhone()}
+        >
+          Import from phone contacts
+        </Button>
+        {importError ? (
+          <p className="animate-fade-in text-center text-[13px] font-medium text-rose">{importError}</p>
+        ) : null}
+      </div>
 
       <Input
         label="Name"
         value={name}
-        autoFocus
         maxLength={80}
         placeholder="e.g. Rishi"
         error={nameError}
