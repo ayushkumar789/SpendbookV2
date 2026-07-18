@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RowSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { ShareModal } from "@/components/shared/ShareModal";
+import { OVERLAY_STYLE, PANEL_STYLE, useBodyScrollLock } from "@/components/ui/overlay";
 import { PullIndicator, usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useTransactions } from "@/hooks/useTransactions";
 import { usePaymentMethods } from "@/hooks/usePaymentMethods";
@@ -65,6 +66,7 @@ function BookDetailContent() {
   const [exportOpen, setExportOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  useBodyScrollLock(exportOpen);
 
   const loadBook = useCallback(async () => {
     try {
@@ -327,34 +329,11 @@ function BookDetailContent() {
       {book ? <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} book={book} onBookChange={setBook} /> : null}
 
       {exportOpen && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.8)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "16px",
-          }}
-          onClick={() => setExportOpen(false)}
-        >
+        <div style={OVERLAY_STYLE} onClick={() => setExportOpen(false)}>
           <div
             role="dialog"
             aria-modal="true"
-            style={{
-              backgroundColor: "var(--card)",
-              borderRadius: "16px",
-              width: "100%",
-              maxWidth: "500px",
-              maxHeight: "80vh",
-              overflowY: "auto",
-              padding: "20px",
-            }}
+            style={PANEL_STYLE}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-start justify-between gap-4">

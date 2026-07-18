@@ -17,6 +17,7 @@ import { RouteGlow } from "@/components/ui/RouteGlow";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { upsertUserProfile } from "@/lib/database";
 import { checkAndProcessRecurringTransactions } from "@/lib/recurring";
+import { consumeReturnPath } from "@/lib/features/sharing";
 import type { ThemePreference, ToastItem } from "@/types";
 
 /* ————————————— Theme ————————————— */
@@ -115,6 +116,12 @@ function AuthProvider({ children }: { children: ReactNode }) {
           photo_url: (u.user_metadata.avatar_url as string | undefined) ?? (u.user_metadata.picture as string | undefined) ?? null,
         }).catch(() => undefined);
         void checkAndProcessRecurringTransactions(u.id).catch(() => undefined);
+        // Sign-in started from a shared book (web flow lands back on the
+        // origin, not /auth/callback) → return to that shared URL.
+        if (window.location.pathname !== "/auth/callback") {
+          const returnTo = consumeReturnPath();
+          if (returnTo) window.location.replace(returnTo);
+        }
       }
       if (!session?.user) bootstrapped.current = false;
     };
@@ -210,7 +217,8 @@ export function useToastContext(): ToastContextValue {
 
 /* ————————————— Native deep links ————————————— */
 
-/** Routes spendbook://shared/[id], OAuth callbacks and https links into the app on Android/iOS. */
+/** Routes spendbook://shared/[id], OAuth callbacks and https App Links
+ *  (https://spendbook-v2.vercel.app/shared/… and /u/…) into the app on Android/iOS. */
 function DeepLinkHandler() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -222,8 +230,15 @@ function DeepLinkHandler() {
         window.location.href = `/auth/callback${url.slice(authIdx + "auth/callback".length)}`;
         return;
       }
-      const match = url.match(/shared\/([0-9a-f-]{36})/i);
-      if (match) window.location.href = `/shared/${match[1]}`;
+      if (url.includes("/shared/")) {
+        const shareId = url.split("/shared/")[1]?.split("?")[0]?.split("#")[0];
+        if (shareId) window.location.href = `/shared/${shareId}`;
+        return;
+      }
+      if (url.includes("/u/")) {
+        const userId = url.split("/u/")[1]?.split("?")[0]?.split("#")[0];
+        if (userId) window.location.href = `/u/${userId}`;
+      }
     });
     return () => {
       void sub.then((s) => s.remove());

@@ -1,4 +1,4 @@
-import type { NewTransactionInput, Transaction } from "@/types";
+import type { Book, BookStats, NewTransactionInput, Transaction } from "@/types";
 
 /* ————— v2 feature types (kept out of types/index.ts by design) ————— */
 
@@ -166,6 +166,61 @@ export interface StatHighlight {
   amount: number;
   category: string;
   date: string;
+}
+
+/* ————— v5: 3-level sharing ————— */
+
+export type ShareAccessLevel = "view" | "details" | "edit";
+
+/** Book row once the v5 share columns exist. Optional so this stays
+ *  cast-compatible with the frozen Book type. */
+export interface BookV5 extends Book {
+  share_view_id?: string | null;
+  share_details_id?: string | null;
+  share_edit_id?: string | null;
+  share_view_active?: boolean;
+  share_details_active?: boolean;
+  share_edit_active?: boolean;
+}
+
+/** One row from the resolve_share_access RPC. */
+export interface SharedBookAccess {
+  book_id: string;
+  access_level: ShareAccessLevel;
+  owner_id: string;
+  owner_display_name: string | null;
+  name: string;
+  description: string | null;
+  color_tag: string;
+  icon_emoji: string;
+  monthly_budget: number | null;
+  created_at: string;
+}
+
+/** A shared book the user pinned to their home page. */
+export interface SavedSharedBook {
+  id: string;
+  user_id: string;
+  book_id: string;
+  access_level: ShareAccessLevel;
+  share_id_used: string;
+  owner_display_name: string | null;
+  book_name: string | null;
+  book_emoji: string | null;
+  book_color: string | null;
+  created_at: string;
+}
+
+/** Saved card + live book data. `live` is null when the owner stopped
+ *  sharing (RLS blocks the read) — the card shows a "Sharing stopped" state. */
+export interface SavedSharedBookCard extends SavedSharedBook {
+  live: {
+    name: string;
+    description: string | null;
+    icon_emoji: string;
+    color_tag: string;
+    stats: BookStats;
+  } | null;
 }
 
 export interface AccountStatsV4 {

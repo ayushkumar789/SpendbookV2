@@ -17,6 +17,7 @@ import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OVERLAY_STYLE, PANEL_STYLE, useBodyScrollLock } from "@/components/ui/overlay";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { RowSkeleton } from "@/components/ui/Skeleton";
 import { PLATFORMS, platformMeta } from "@/components/links/platforms";
@@ -309,6 +310,7 @@ function AddLinkDialog({
   const [isPublic, setIsPublic] = useState(true);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (open) {
@@ -349,34 +351,11 @@ function AddLinkDialog({
   if (!open) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.8)",
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "16px",
-      }}
-      onClick={onClose}
-    >
+    <div style={OVERLAY_STYLE} onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        style={{
-          backgroundColor: "var(--card)",
-          borderRadius: "16px",
-          width: "100%",
-          maxWidth: "500px",
-          maxHeight: "80vh",
-          overflowY: "auto",
-          padding: "20px",
-        }}
+        style={PANEL_STYLE}
         onClick={(e) => e.stopPropagation()}
       >
       <div className="mb-5 flex items-start justify-between gap-4">

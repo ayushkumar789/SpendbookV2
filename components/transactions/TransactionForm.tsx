@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { FieldWrap, Textarea } from "@/components/ui/Input";
 import { InitialBadge } from "@/components/ui/Badge";
 import { ContactAvatar, ContactPicker } from "@/components/contacts/ContactPicker";
+import { OVERLAY_STYLE, PANEL_STYLE, useBodyScrollLock } from "@/components/ui/overlay";
 import type { PaymentMethod, RecurrenceInterval } from "@/types";
 import type {
   Contact,
@@ -169,6 +170,8 @@ export function TransactionForm({
   }, [receiptFile, existingReceipt, removeExisting]);
 
   const selectedLabel = useMemo(() => methodLabel(methodId, methods), [methodId, methods]);
+
+  useBodyScrollLock(pickerOpen || transferPicker !== null || viewerOpen);
 
   const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
@@ -653,34 +656,11 @@ export function TransactionForm({
 
       {/* Method picker */}
       {pickerOpen && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.8)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "16px",
-          }}
-          onClick={() => setPickerOpen(false)}
-        >
+        <div style={OVERLAY_STYLE} onClick={() => setPickerOpen(false)}>
           <div
             role="dialog"
             aria-modal="true"
-            style={{
-              backgroundColor: "var(--card)",
-              borderRadius: "16px",
-              width: "100%",
-              maxWidth: "500px",
-              maxHeight: "80vh",
-              overflowY: "auto",
-              padding: "20px",
-            }}
+            style={PANEL_STYLE}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-start justify-between gap-4">
@@ -733,34 +713,11 @@ export function TransactionForm({
 
       {/* Transfer From/To account picker */}
       {transferPicker !== null && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.8)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "16px",
-          }}
-          onClick={() => setTransferPicker(null)}
-        >
+        <div style={OVERLAY_STYLE} onClick={() => setTransferPicker(null)}>
           <div
             role="dialog"
             aria-modal="true"
-            style={{
-              backgroundColor: "var(--card)",
-              borderRadius: "16px",
-              width: "100%",
-              maxWidth: "500px",
-              maxHeight: "80vh",
-              overflowY: "auto",
-              padding: "20px",
-            }}
+            style={PANEL_STYLE}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-start justify-between gap-4">

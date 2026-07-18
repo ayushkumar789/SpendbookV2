@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { OVERLAY_STYLE, PANEL_STYLE, useBodyScrollLock } from "@/components/ui/overlay";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -24,6 +25,7 @@ export function ConfirmDialog({
   destructive = false,
 }: ConfirmDialogProps) {
   const [busy, setBusy] = useState(false);
+  useBodyScrollLock(open);
 
   const handleConfirm = async (): Promise<void> => {
     setBusy(true);
@@ -38,34 +40,11 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.8)",
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "16px",
-      }}
-      onClick={busy ? undefined : onClose}
-    >
+    <div style={OVERLAY_STYLE} onClick={busy ? undefined : onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        style={{
-          backgroundColor: "var(--card)",
-          borderRadius: "16px",
-          width: "100%",
-          maxWidth: "500px",
-          maxHeight: "80vh",
-          overflowY: "auto",
-          padding: "20px",
-        }}
+        style={PANEL_STYLE}
         onClick={(e) => e.stopPropagation()}
       >
       <div className="flex flex-col items-center gap-4 text-center">

@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.spendbook.app",
+    "sha256_cert_fingerprints": ["10:29:1F:1E:AD:BD:D4:F9:B1:64:3C:94:2D:79:3A:6B:CB:EE:26:EB:72:41:EA:A0:BA:C0:53:D7:03:D4:7D:B5"]
+  }
+}]

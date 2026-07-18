@@ -6,16 +6,20 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { useAuth } from "@/hooks/useAuth";
+import { saveSharedBook } from "@/lib/features/sharing";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Public screen — no login required. */
 export default function EnterCodePage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: FormEvent): void => {
+  const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     // Accept a bare code or a full pasted link.
     const match = code.trim().match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
@@ -23,7 +27,15 @@ export default function EnterCodePage() {
       setError("That doesn't look like a share code — paste the full code or link");
       return;
     }
-    router.push(`/shared/${match[0].toLowerCase()}`);
+    const shareId = match[0].toLowerCase();
+    // Logged-in users get the book pinned to their home page right away.
+    // The shared view retries this anyway, so failures are non-fatal.
+    if (user) {
+      setBusy(true);
+      await saveSharedBook(shareId).catch(() => undefined);
+      setBusy(false);
+    }
+    router.push(`/shared/${shareId}`);
   };
 
   return (
@@ -52,7 +64,7 @@ export default function EnterCodePage() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="card-surface flex flex-col gap-4 rounded-3xl p-6">
+        <form onSubmit={(e) => void handleSubmit(e)} className="card-surface flex flex-col gap-4 rounded-3xl p-6">
           <Input
             label="Share code or link"
             placeholder="e.g. 3f2a91c8-…"
@@ -65,7 +77,7 @@ export default function EnterCodePage() {
             autoFocus
             className="amount"
           />
-          <Button type="submit" size="lg" icon={<ArrowRight className="h-4 w-4" />}>
+          <Button type="submit" size="lg" loading={busy} icon={<ArrowRight className="h-4 w-4" />}>
             View book
           </Button>
         </form>

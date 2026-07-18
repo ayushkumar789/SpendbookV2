@@ -3,17 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { KeyRound, Plus } from "lucide-react";
+import { KeyRound, Plus, Users } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Header } from "@/components/layout/Header";
 import { BookCard } from "@/components/books/BookCard";
+import { SharedBookCard } from "@/components/books/SharedBookCard";
 import { BookCardSkeleton } from "@/components/ui/Skeleton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { PullIndicator, usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useBooks } from "@/hooks/useBooks";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
 import { getTransferTotalsByBook } from "@/lib/features/insights";
+import { getSavedSharedBookCards, removeSavedSharedBook } from "@/lib/features/sharing";
+import type { SavedSharedBookCard } from "@/types/features";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -32,9 +37,35 @@ export default function HomePage() {
 
 function HomeContent() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { books, loading, error, refresh } = useBooks();
   const router = useRouter();
-  const { pull, refreshing } = usePullToRefresh(refresh);
+
+  // Books other people shared with this user (saved via shared links/codes).
+  const [sharedCards, setSharedCards] = useState<SavedSharedBookCard[]>([]);
+  const [pendingRemove, setPendingRemove] = useState<SavedSharedBookCard | null>(null);
+  const loadShared = useMemo(
+    () => async () => {
+      if (!user) return;
+      try {
+        setSharedCards(await getSavedSharedBookCards(user.id));
+      } catch {
+        setSharedCards([]);
+      }
+    },
+    [user]
+  );
+  useEffect(() => {
+    void loadShared();
+  }, [loadShared]);
+
+  const refreshAll = useMemo(
+    () => async () => {
+      await Promise.all([refresh(), loadShared()]);
+    },
+    [refresh, loadShared]
+  );
+  const { pull, refreshing } = usePullToRefresh(refreshAll);
 
   // The frozen book-stats query counts self transfers as Cash Out;
   // strip them back out so the cards show true totals.
@@ -133,7 +164,38 @@ function HomeContent() {
             ))}
           </div>
         )}
+
+        {/* Shared with me — hidden entirely when nothing is saved */}
+        {sharedCards.length > 0 ? (
+          <section className="mt-8">
+            <div className="mb-3 flex items-center gap-2">
+              <Users className="h-4 w-4 text-ink3" />
+              <h2 className="label-caps">Shared with me</h2>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {sharedCards.map((c, i) => (
+                <SharedBookCard key={c.id} card={c} index={i} onRemove={setPendingRemove} />
+              ))}
+            </div>
+          </section>
+        ) : null}
       </main>
+
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        onClose={() => setPendingRemove(null)}
+        title="Remove from home?"
+        message={`"${pendingRemove?.live?.name ?? pendingRemove?.book_name ?? "This book"}" disappears from your home page. The owner's sharing is unaffected — you can add it back with the same link.`}
+        confirmLabel="Remove"
+        destructive
+        onConfirm={async () => {
+          if (!pendingRemove || !user) return;
+          await removeSavedSharedBook(user.id, pendingRemove.book_id);
+          setPendingRemove(null);
+          toast("Removed from your home page", "info");
+          await loadShared();
+        }}
+      />
 
       {/* Mobile FAB */}
       <button

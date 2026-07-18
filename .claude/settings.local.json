@@ -21,7 +21,8 @@
       "Bash(printf '\\\\n-- ═══════════════════════════════════════════════════════════\\\\n-- V3 additions \\(wallet vault, profile links\\) — see schema-v3-additions.sql\\\\n-- ═══════════════════════════════════════════════════════════\\\\n')",
       "Bash(tail -n +8 supabase/schema-v3-additions.sql)",
       "Bash(npx tsc *)",
-      "PowerShell(npx tsc --noEmit)"
+      "PowerShell(npx tsc --noEmit)",
+      "Bash(npx next *)"
     ]
   }
 }

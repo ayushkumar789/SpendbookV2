@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
+import { consumeReturnPath } from "@/lib/features/sharing";
 import { SplashScreen } from "@/components/ui/LoadingSpinner";
 
 /**
@@ -46,7 +47,7 @@ export default function AuthCallbackPage() {
           const { data } = await supabase.auth.getSession();
           if (!data.session) throw new Error("No sign-in credentials found in the callback URL.");
         }
-        router.replace("/home");
+        router.replace(consumeReturnPath() ?? "/home");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Sign-in failed");
       }
