@@ -22,7 +22,9 @@
       "Bash(tail -n +8 supabase/schema-v3-additions.sql)",
       "Bash(npx tsc *)",
       "PowerShell(npx tsc --noEmit)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "PowerShell(npx tsc --noEmit 2>$null; echo \"exit: $LASTEXITCODE\")",
+      "PowerShell(npx next lint --file app/home/page.tsx --file components/books/BookCard.tsx --file components/accounts/AccountCard.tsx --file \"app/u/[userId]/page.tsx\" --file lib/features/accounts.ts --file types/features.ts)"
     ]
   }
 }

@@ -5,7 +5,9 @@ import type {
   AccountGroupMember,
   AccountGroupWithDetails,
   AccountSnapshot,
+  LiveBalanceResult,
   NewAccountGroupInput,
+  PrimaryBookInfo,
   PublicAccountBalance,
   TransactionTypeV4,
   TransactionV4,
@@ -66,6 +68,48 @@ function computeAdjustment(transactions: BalanceTxn[], memberIds: Set<string>, a
   return adjustment;
 }
 
+/* ————— Primary book ————— */
+
+/** The one book balance calculations track, or null when none is set. */
+export async function getPrimaryBook(ownerId: string): Promise<PrimaryBookInfo | null> {
+  const { data, error } = await getSupabase()
+    .from("books")
+    .select("id, name")
+    .eq("owner_id", ownerId)
+    .eq("is_primary", true)
+    .limit(1)
+    .maybeSingle();
+  if (error) fail("Failed to load the primary book", error);
+  return data as PrimaryBookInfo | null;
+}
+
+/** Clears every primary flag first so at most one book stays primary
+ *  (single-primary is enforced here, not by a DB constraint). */
+export async function setPrimaryBook(ownerId: string, bookId: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error: clearError } = await supabase
+    .from("books")
+    .update({ is_primary: false })
+    .eq("owner_id", ownerId)
+    .eq("is_primary", true);
+  if (clearError) fail("Failed to set the primary book", clearError);
+  const { error } = await supabase
+    .from("books")
+    .update({ is_primary: true })
+    .eq("id", bookId)
+    .eq("owner_id", ownerId);
+  if (error) fail("Failed to set the primary book", error);
+}
+
+export async function clearPrimaryBook(ownerId: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from("books")
+    .update({ is_primary: false })
+    .eq("owner_id", ownerId)
+    .eq("is_primary", true);
+  if (error) fail("Failed to remove the primary book", error);
+}
+
 export async function getLatestSnapshot(groupId: string): Promise<AccountSnapshot | null> {
   const { data, error } = await getSupabase()
     .from("account_balance_snapshots")
@@ -87,29 +131,47 @@ export async function getGroupMemberIds(groupId: string): Promise<string[]> {
   return ((data ?? []) as Array<{ payment_method_id: string }>).map((m) => m.payment_method_id);
 }
 
-/** Live balance for one group: latest snapshot ± all owner transactions
- *  after the snapshot date that used any member method (across ALL books).
- *  Null = no snapshot set yet. */
-export async function calculateLiveBalance(groupId: string, ownerId: string): Promise<number | null> {
+/** Live balance for one group: latest snapshot ± transactions from the
+ *  PRIMARY BOOK after the snapshot date that used any member method.
+ *  balance null = no snapshot set yet; isPaused = no primary book, the
+ *  snapshot baseline is returned untouched. */
+export async function calculateLiveBalance(groupId: string, ownerId: string): Promise<LiveBalanceResult> {
   const snapshot = await getLatestSnapshot(groupId);
-  if (!snapshot) return null;
+  if (!snapshot) return { balance: null, isPaused: false };
 
+  const primaryBook = await getPrimaryBook(ownerId);
+  if (!primaryBook) {
+    return {
+      balance: Number(snapshot.balance),
+      isPaused: true,
+      message: "Set a primary book to enable live balance tracking",
+    };
+  }
+
+  const base = {
+    isPaused: false as const,
+    primaryBookId: primaryBook.id,
+    primaryBookName: primaryBook.name,
+  };
   const memberIds = await getGroupMemberIds(groupId);
-  if (memberIds.length === 0) return Number(snapshot.balance);
+  if (memberIds.length === 0) return { ...base, balance: Number(snapshot.balance) };
 
   const list = `(${memberIds.join(",")})`;
   const { data, error } = await getSupabase()
     .from("transactions")
     .select("type, amount, payment_method_id, transfer_to_payment_method_id, date")
     .eq("owner_id", ownerId)
+    .eq("book_id", primaryBook.id)
     .gt("date", snapshot.snapshot_date)
     .or(`payment_method_id.in.${list},transfer_to_payment_method_id.in.${list}`);
   if (error) fail("Failed to calculate balance", error);
 
-  return (
-    Number(snapshot.balance) +
-    computeAdjustment((data ?? []) as BalanceTxn[], new Set(memberIds), snapshot.snapshot_date)
-  );
+  return {
+    ...base,
+    balance:
+      Number(snapshot.balance) +
+      computeAdjustment((data ?? []) as BalanceTxn[], new Set(memberIds), snapshot.snapshot_date),
+  };
 }
 
 /* ————— Groups: read ————— */
@@ -117,7 +179,7 @@ export async function calculateLiveBalance(groupId: string, ownerId: string): Pr
 /** Everything the Accounts page needs in four queries, balances included. */
 export async function getAccountGroupsWithDetails(ownerId: string): Promise<AccountGroupWithDetails[]> {
   const supabase = getSupabase();
-  const [groupsRes, membersRes, snapshotsRes, methodsRes] = await Promise.all([
+  const [groupsRes, membersRes, snapshotsRes, methodsRes, primaryBook] = await Promise.all([
     supabase.from("account_groups").select("*").eq("owner_id", ownerId).order("created_at", { ascending: true }),
     supabase.from("account_group_members").select("*").eq("owner_id", ownerId),
     supabase
@@ -126,6 +188,7 @@ export async function getAccountGroupsWithDetails(ownerId: string): Promise<Acco
       .eq("owner_id", ownerId)
       .order("snapshot_date", { ascending: false }),
     supabase.from("payment_methods").select("*").eq("owner_id", ownerId),
+    getPrimaryBook(ownerId),
   ]);
   if (groupsRes.error) fail("Failed to load accounts", groupsRes.error);
   if (membersRes.error) fail("Failed to load account members", membersRes.error);
@@ -152,14 +215,17 @@ export async function getAccountGroupsWithDetails(ownerId: string): Promise<Acco
   }
 
   // One transactions query covering every grouped method, filtered per group.
+  // Only primary-book transactions count; with no primary book the query is
+  // skipped and every balance stays at its snapshot baseline (paused).
   const allMemberIds = [...new Set(members.map((m) => m.payment_method_id))];
   let balanceTxns: BalanceTxn[] = [];
-  if (allMemberIds.length > 0 && latestByGroup.size > 0) {
+  if (primaryBook && allMemberIds.length > 0 && latestByGroup.size > 0) {
     const list = `(${allMemberIds.join(",")})`;
     const { data, error } = await supabase
       .from("transactions")
       .select("type, amount, payment_method_id, transfer_to_payment_method_id, date")
       .eq("owner_id", ownerId)
+      .eq("book_id", primaryBook.id)
       .or(`payment_method_id.in.${list},transfer_to_payment_method_id.in.${list}`);
     if (error) fail("Failed to calculate balances", error);
     balanceTxns = (data ?? []) as BalanceTxn[];
@@ -171,7 +237,7 @@ export async function getAccountGroupsWithDetails(ownerId: string): Promise<Acco
     let liveBalance: number | null = null;
     if (latest) {
       liveBalance =
-        memberIds.length === 0
+        !primaryBook || memberIds.length === 0
           ? Number(latest.balance)
           : Number(latest.balance) +
             computeAdjustment(balanceTxns, new Set(memberIds), latest.snapshot_date);
@@ -181,6 +247,8 @@ export async function getAccountGroupsWithDetails(ownerId: string): Promise<Acco
       members: memberIds.map((id) => methodById.get(id)).filter((m): m is PaymentMethod => !!m),
       latestSnapshot: latest,
       liveBalance,
+      balancePaused: primaryBook === null,
+      primaryBookName: primaryBook?.name ?? null,
     };
   });
 }
@@ -342,11 +410,24 @@ export async function getPublicAccountBalances(userId: string): Promise<PublicAc
           .limit(1)
           .maybeSingle(),
       ]);
+      // v8 RPC returns jsonb {balance, isPaused}; a plain number means the
+      // pre-v8 SQL function is still deployed — treat it as a live balance.
+      const raw = balanceRes.error ? null : (balanceRes.data as unknown);
+      let balance: number | null = null;
+      let isPaused = false;
+      if (typeof raw === "number") {
+        balance = raw;
+      } else if (raw && typeof raw === "object") {
+        const shaped = raw as { balance?: number | string | null; isPaused?: boolean };
+        balance = shaped.balance == null ? null : Number(shaped.balance);
+        isPaused = shaped.isPaused === true;
+      }
       return {
         id: g.id,
         name: g.name,
         color: g.color,
-        balance: balanceRes.error ? null : (balanceRes.data as number | null),
+        balance,
+        isPaused,
         updatedAt: (snapshotRes.data as { snapshot_date: string } | null)?.snapshot_date ?? null,
       };
     })

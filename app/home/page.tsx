@@ -17,6 +17,7 @@ import { useBooks } from "@/hooks/useBooks";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { getTransferTotalsByBook } from "@/lib/features/insights";
+import { clearPrimaryBook, getPrimaryBook, setPrimaryBook } from "@/lib/features/accounts";
 import { getSavedSharedBookCards, removeSavedSharedBook } from "@/lib/features/sharing";
 import type { SavedSharedBookCard } from "@/types/features";
 
@@ -59,11 +60,49 @@ function HomeContent() {
     void loadShared();
   }, [loadShared]);
 
+  // The primary book: the one book balance calculations track.
+  const [primaryBookId, setPrimaryBookId] = useState<string | null>(null);
+  const [primaryBusy, setPrimaryBusy] = useState(false);
+  const [pendingUnsetPrimary, setPendingUnsetPrimary] = useState<{ id: string; name: string } | null>(null);
+  const loadPrimary = useMemo(
+    () => async () => {
+      if (!user) return;
+      try {
+        setPrimaryBookId((await getPrimaryBook(user.id))?.id ?? null);
+      } catch {
+        setPrimaryBookId(null);
+      }
+    },
+    [user]
+  );
+  useEffect(() => {
+    void loadPrimary();
+  }, [loadPrimary]);
+
+  const handleTogglePrimary = (book: { id: string; name: string }): void => {
+    if (!user || primaryBusy) return;
+    if (book.id === primaryBookId) {
+      setPendingUnsetPrimary(book);
+      return;
+    }
+    if (primaryBookId !== null) return; // stars are locked while another book is primary
+    setPrimaryBusy(true);
+    setPrimaryBook(user.id, book.id)
+      .then(() => {
+        setPrimaryBookId(book.id);
+        toast(`Primary book set. Balance will now track ${book.name}.`, "success");
+      })
+      .catch((e: unknown) =>
+        toast(e instanceof Error ? e.message : "Could not set the primary book", "error")
+      )
+      .finally(() => setPrimaryBusy(false));
+  };
+
   const refreshAll = useMemo(
     () => async () => {
-      await Promise.all([refresh(), loadShared()]);
+      await Promise.all([refresh(), loadShared(), loadPrimary()]);
     },
-    [refresh, loadShared]
+    [refresh, loadShared, loadPrimary]
   );
   const { pull, refreshing } = usePullToRefresh(refreshAll);
 
@@ -160,7 +199,16 @@ function HomeContent() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {adjustedBooks.map((b, i) => (
-              <BookCard key={b.id} book={b} index={i} />
+              <BookCard
+                key={b.id}
+                book={b}
+                index={i}
+                primary={{
+                  isPrimary: b.id === primaryBookId,
+                  hasPrimary: primaryBookId !== null,
+                  onToggle: () => handleTogglePrimary(b),
+                }}
+              />
             ))}
           </div>
         )}
@@ -180,6 +228,20 @@ function HomeContent() {
           </section>
         ) : null}
       </main>
+
+      <ConfirmDialog
+        open={pendingUnsetPrimary !== null}
+        onClose={() => setPendingUnsetPrimary(null)}
+        title="Remove primary book?"
+        message="Balance calculations will pause until you select a new primary book."
+        confirmLabel="Remove"
+        onConfirm={async () => {
+          if (!user) return;
+          await clearPrimaryBook(user.id);
+          setPrimaryBookId(null);
+          toast("Primary book removed. Balance tracking is paused.", "info");
+        }}
+      />
 
       <ConfirmDialog
         open={pendingRemove !== null}

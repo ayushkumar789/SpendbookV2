@@ -97,14 +97,23 @@ export default function PublicProfilePage() {
               />
               <div className="relative flex items-center justify-between gap-3">
                 <p className="min-w-0 truncate text-sm font-bold text-ink">{b.name}</p>
-                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-jade-soft px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-jade">
-                  <span className="h-1.5 w-1.5 rounded-full bg-jade animate-pulse-dot" />
-                  Live
+                <span
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]",
+                    b.isPaused ? "bg-sunken text-ink3" : "bg-jade-soft text-jade"
+                  )}
+                >
+                  {b.isPaused ? null : <span className="h-1.5 w-1.5 rounded-full bg-jade animate-pulse-dot" />}
+                  {b.isPaused ? "Paused" : "Live"}
                 </span>
               </div>
-              <p className="amount relative mt-2 truncate font-display text-[34px] font-semibold leading-tight tracking-tight text-ink">
-                {b.balance !== null ? formatBalance(Number(b.balance)) : "—"}
-              </p>
+              {b.isPaused ? (
+                <p className="relative mt-3 text-[15px] font-semibold text-ink3">Balance tracking paused</p>
+              ) : (
+                <p className="amount relative mt-2 truncate font-display text-[34px] font-semibold leading-tight tracking-tight text-ink">
+                  {b.balance !== null ? formatBalance(Number(b.balance)) : "—"}
+                </p>
+              )}
               {b.updatedAt ? (
                 <p className="relative mt-1 text-xs text-ink3">
                   Updated {formatDistanceToNow(new Date(b.updatedAt), { addSuffix: true })}

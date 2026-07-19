@@ -1,6 +1,7 @@
 "use client";
 
-import { Globe, Pencil, RefreshCcw, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, Globe, Pause, Pencil, RefreshCcw, Trash2 } from "lucide-react";
 import { BANKS } from "@/lib/constants";
 import { formatBalance } from "@/lib/features/accounts";
 import { cn, formatDate } from "@/lib/helpers";
@@ -50,20 +51,45 @@ export function AccountCard({
       {/* Live balance */}
       <div className="relative mt-4">
         {hasSnapshot && group.liveBalance !== null ? (
-          <>
-            <p className="label-caps">Live balance</p>
-            <p
-              className={cn(
-                "amount mt-1 truncate font-display text-[32px] font-semibold tracking-tight",
-                group.liveBalance < 0 ? "text-rose" : "text-ink"
-              )}
-            >
-              {formatBalance(group.liveBalance)}
-            </p>
-            <p className="mt-0.5 text-xs text-ink3">
-              Balance set on {formatDate(group.latestSnapshot!.snapshot_date, "d MMM yyyy, h:mm a")}
-            </p>
-          </>
+          group.balancePaused ? (
+            <>
+              {/* No primary book: the snapshot baseline, clearly not live */}
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="label-caps">Balance</p>
+                <span className="flex items-center gap-1 rounded-full border border-line bg-sunken px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-warn">
+                  <Pause className="h-3 w-3" /> Paused — no primary book set
+                </span>
+              </div>
+              <p className="amount mt-1 flex items-center gap-2 truncate font-display text-[32px] font-semibold tracking-tight text-ink opacity-50">
+                <Pause className="h-5 w-5 shrink-0 text-ink3" />
+                {formatBalance(group.liveBalance)}
+              </p>
+              <Link
+                href="/home"
+                className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-brand-deep hover:underline"
+              >
+                Set primary book <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="label-caps">Live balance</p>
+              <p
+                className={cn(
+                  "amount mt-1 truncate font-display text-[32px] font-semibold tracking-tight",
+                  group.liveBalance < 0 ? "text-rose" : "text-ink"
+                )}
+              >
+                {formatBalance(group.liveBalance)}
+              </p>
+              {group.primaryBookName ? (
+                <p className="mt-0.5 text-xs text-ink3">Tracking {group.primaryBookName}</p>
+              ) : null}
+              <p className="mt-0.5 text-xs text-ink3">
+                Balance set on {formatDate(group.latestSnapshot!.snapshot_date, "d MMM yyyy, h:mm a")}
+              </p>
+            </>
+          )
         ) : (
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-line-strong bg-sunken px-4 py-3.5">
             <p className="text-sm font-medium text-ink2">Set your current balance to start tracking</p>

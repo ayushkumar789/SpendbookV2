@@ -261,11 +261,15 @@ export interface NewAccountGroupInput {
 }
 
 /** Everything an account card needs: the group, its member payment methods,
- *  the latest snapshot and the computed live balance (null = no snapshot yet). */
+ *  the latest snapshot and the computed live balance (null = no snapshot yet).
+ *  When `balancePaused` is true (no primary book set) `liveBalance` is the
+ *  raw snapshot baseline, not a live number. */
 export interface AccountGroupWithDetails extends AccountGroup {
   members: PaymentMethod[];
   latestSnapshot: AccountSnapshot | null;
   liveBalance: number | null;
+  balancePaused: boolean;
+  primaryBookName: string | null;
 }
 
 /** One balance card on the public profile. Only the name, color, balance
@@ -276,6 +280,31 @@ export interface PublicAccountBalance {
   color: string;
   balance: number | null;
   updatedAt: string | null;
+  /** True when the owner has no primary book — the balance shown is a stale snapshot. */
+  isPaused?: boolean;
+}
+
+/* ————— v8: primary book ————— */
+
+/** Book row once the v8 primary column exists. Optional so this stays
+ *  cast-compatible with the frozen Book type. */
+export interface BookV8 extends BookV5 {
+  is_primary?: boolean;
+}
+
+export interface PrimaryBookInfo {
+  id: string;
+  name: string;
+}
+
+/** Result of calculateLiveBalance. `balance` null = no snapshot yet.
+ *  `isPaused` true = no primary book set; `balance` is the raw snapshot. */
+export interface LiveBalanceResult {
+  balance: number | null;
+  isPaused: boolean;
+  message?: string;
+  primaryBookId?: string;
+  primaryBookName?: string;
 }
 
 /* ————— v7: People (saved public profiles) ————— */
